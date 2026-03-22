@@ -595,8 +595,8 @@ export default function UAEStressTest(){
           <span style={{width:1,height:12,background:T.rule}}/>
           <span style={{fontFamily:F.n,fontSize:10,letterSpacing:"0.16em",textTransform:"uppercase",color:T.t4,fontWeight:400}}>March 2026</span>
         </div>
-        <h1 style={{fontFamily:F.d,fontSize:mobile?32:48,fontWeight:200,lineHeight:1.08,margin:0,letterSpacing:"-0.025em",color:T.t1,maxWidth:720}}>After the Missiles</h1>
-        <h2 style={{fontFamily:F.d,fontSize:mobile?17:22,fontWeight:300,lineHeight:1.35,margin:"10px 0 0",color:T.t3,fontStyle:"italic",letterSpacing:"-0.005em"}}>What determines whether the UAE bounces back</h2>
+        <h1 style={{fontFamily:F.d,fontSize:mobile?32:48,fontWeight:200,lineHeight:1.08,margin:0,letterSpacing:"-0.025em",color:T.t1,maxWidth:720}}>After the Strikes</h1>
+        <h2 style={{fontFamily:F.d,fontSize:mobile?17:22,fontWeight:300,lineHeight:1.35,margin:"10px 0 0",color:T.t3,fontStyle:"italic",letterSpacing:"-0.005em"}}>What determines the Shape of UAE Recovery</h2>
         <div style={{width:48,height:1,marginTop:36,background:`linear-gradient(90deg, ${T.green}, ${T.orange}, ${T.red})`,borderRadius:1}}/>
 
         {/* One-breath summary */}

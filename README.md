@@ -1,4 +1,4 @@
-# After the Missiles: What Determines Whether the UAE Bounces Back
+# After the Strikes: What Determines the Shape of UAE Recovery
 
 **An open simulation with exposed parameters and sector-level timing**
 
@@ -247,7 +247,7 @@ These distinctions do not invalidate the model's core findings but suggest that 
 
 If you reference this work:
 
-> Brandes, A. (2026). *After the Missiles: What Determines Whether the UAE Bounces Back.* March 2026. Available at https://github.com/AMBRA7592/uae-recovery-stress-test
+> Brandes, A. (2026). *After the Strikes: What Determines the Shape of UAE Recovery.* March 2026. Available at https://github.com/AMBRA7592/uae-recovery-stress-test
 
 ---
 
