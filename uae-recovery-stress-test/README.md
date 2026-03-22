@@ -247,7 +247,7 @@ These distinctions do not invalidate the model's core findings but suggest that 
 
 If you reference this work:
 
-> Brandes, A. (2026). *After the Missiles: What Determines Whether the UAE Bounces Back.* March 2026. Available at [repository URL].
+> Brandes, A. (2026). *After the Missiles: What Determines Whether the UAE Bounces Back.* March 2026. Available at https://github.com/AMBRA7592/uae-recovery-stress-test
 
 ---
 
