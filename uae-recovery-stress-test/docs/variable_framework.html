@@ -1,0 +1,163 @@
+
+<style>
+  .fw { font-family: var(--font-sans); }
+  .axis-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+  .quad { border-radius: var(--border-radius-lg); padding: 16px; min-height: 120px; }
+  .quad h3 { font-size: 14px; font-weight: 500; margin: 0 0 10px; }
+  .var-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 12px; margin: 3px 4px; cursor: pointer; border: 0.5px solid transparent; transition: all 0.2s; line-height: 1.3; }
+  .var-pill:hover { transform: scale(1.03); }
+  .var-pill.active { border-color: currentColor; opacity: 1; transform: scale(1.03); }
+  .var-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .detail-panel { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 16px 20px; margin-top: 16px; display: none; border: 0.5px solid var(--color-border-tertiary); }
+  .detail-panel.active { display: block; }
+  .detail-panel h4 { font-size: 15px; font-weight: 500; margin: 0 0 6px; color: var(--color-text-primary); }
+  .detail-panel .verdict { font-size: 13px; font-weight: 500; margin: 0 0 10px; }
+  .detail-panel p { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px; line-height: 1.6; }
+  .q-tl { background: rgba(93,202,165,0.08); }
+  .q-tr { background: rgba(239,159,39,0.08); }
+  .q-bl { background: rgba(133,183,235,0.08); }
+  .q-br { background: rgba(240,153,123,0.08); }
+  .q-tl h3 { color: #0F6E56; } .q-tr h3 { color: #854F0B; }
+  .q-bl h3 { color: #185FA5; } .q-br h3 { color: #993C1D; }
+  @media (prefers-color-scheme: dark) {
+    .q-tl { background: rgba(93,202,165,0.06); } .q-tl h3 { color: #5DCAA5; }
+    .q-tr { background: rgba(239,159,39,0.06); } .q-tr h3 { color: #EF9F27; }
+    .q-bl { background: rgba(133,183,235,0.06); } .q-bl h3 { color: #85B7EB; }
+    .q-br { background: rgba(240,153,123,0.06); } .q-br h3 { color: #F0997B; }
+  }
+  .p-teal .dot { background: #1D9E75; } .p-teal { background: rgba(93,202,165,0.12); color: #085041; }
+  .p-amber .dot { background: #BA7517; } .p-amber { background: rgba(239,159,39,0.12); color: #633806; }
+  .p-blue .dot { background: #378ADD; } .p-blue { background: rgba(133,183,235,0.12); color: #0C447C; }
+  .p-coral .dot { background: #D85A30; } .p-coral { background: rgba(240,153,123,0.12); color: #712B13; }
+  @media (prefers-color-scheme: dark) {
+    .p-teal { background: rgba(93,202,165,0.15); color: #9FE1CB; }
+    .p-amber { background: rgba(239,159,39,0.15); color: #FAC775; }
+    .p-blue { background: rgba(133,183,235,0.15); color: #B5D4F4; }
+    .p-coral { background: rgba(240,153,123,0.15); color: #F5C4B3; }
+  }
+</style>
+<div class="fw">
+  <div style="display:grid;grid-template-columns:24px 1fr 1fr;grid-template-rows:auto auto auto;gap:10px;align-items:stretch;">
+    <div></div>
+    <div class="axis-label" style="text-align:center;">UAE controls the lever</div>
+    <div class="axis-label" style="text-align:center;">External / market-driven</div>
+
+    <div class="axis-label" style="writing-mode:vertical-lr;transform:rotate(180deg);text-align:center;justify-self:center;">Likely temporary</div>
+    <div class="quad q-tl">
+      <h3>High confidence rebound</h3>
+      <span class="var-pill p-teal" onclick="show('swf')"><span class="dot"></span>SWF deployment lag</span>
+      <span class="var-pill p-teal" onclick="show('infra')"><span class="dot"></span>Infrastructure rebuild</span>
+      <span class="var-pill p-teal" onclick="show('reg')"><span class="dot"></span>Regulatory framework</span>
+    </div>
+    <div class="quad q-tr">
+      <h3>Cyclical tailwind</h3>
+      <span class="var-pill p-amber" onclick="show('oil')"><span class="dot"></span>Oil windfall effect</span>
+      <span class="var-pill p-amber" onclick="show('fdi')"><span class="dot"></span>FDI redirection</span>
+      <span class="var-pill p-amber" onclick="show('sentiment')"><span class="dot"></span>Consumer/investor sentiment</span>
+    </div>
+
+    <div class="axis-label" style="writing-mode:vertical-lr;transform:rotate(180deg);text-align:center;justify-self:center;">Could be structural</div>
+    <div class="quad q-bl">
+      <h3>Manageable if addressed</h3>
+      <span class="var-pill p-blue" onclick="show('gcc')"><span class="dot"></span>GCC coordination</span>
+      <span class="var-pill p-blue" onclick="show('diversify')"><span class="dot"></span>Diversification momentum</span>
+    </div>
+    <div class="quad q-br">
+      <h3>The real swing variables</h3>
+      <span class="var-pill p-coral" onclick="show('brand')"><span class="dot"></span>Safe-haven brand</span>
+      <span class="var-pill p-coral" onclick="show('network')"><span class="dot"></span>Talent/firm network effects</span>
+      <span class="var-pill p-coral" onclick="show('absorb')"><span class="dot"></span>Competitor absorption</span>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="detail">
+    <h4 id="d-title"></h4>
+    <div class="verdict" id="d-verdict"></div>
+    <p id="d-body"></p>
+    <p id="d-bear" style="font-style:italic;"></p>
+  </div>
+</div>
+<script>
+const data = {
+  swf: {
+    title: "SWF deployment lag",
+    verdict: "Temporary — 6-18 month pivot, not a capability loss",
+    body: "ADIA, Mubadala, and ADQ shift from offensive to defensive posture during active conflict. But the $2.5T asset base doesn't shrink — it accumulates. The deployment lag is a timing question, not a capacity question. Mubadala's 2026-2030 strategy hasn't been walked back. Historical pattern: SWFs accelerate deployment in the 12 months after stabilisation, often at better valuations.",
+    bear: "Bear narrative says: 'SWFs are cutting back.' Reality: PIF is cutting 15%. UAE funds are signalling differently. Don't conflate Saudi fiscal pressure with UAE balance sheet strength (184% net asset position)."
+  },
+  infra: {
+    title: "Infrastructure reconstruction",
+    verdict: "Temporary — depends on damage extent, but UAE has rebuild capacity",
+    body: "Physical damage to Jebel Ali, airports, or energy infrastructure is the most tangible risk. But reconstruction timelines are a function of capital and engineering capacity, both of which the UAE has in abundance. The harder question is whether damage to port/logistics infrastructure causes permanent rerouting of trade — but container shipping is sticky (ports have deep relationships with shipping lines).",
+    bear: "Bear narrative says: 'Jebel Ali is destroyed, trade will reroute.' Reality: Port infrastructure is repairable. The question is duration of disruption, not permanent loss. Singapore and Jeddah don't have spare berth capacity to absorb Jebel Ali's throughput."
+  },
+  reg: {
+    title: "Regulatory & legal framework",
+    verdict: "Stock asset — almost certainly survives intact",
+    body: "DIFC, ADGM, free zone frameworks, visa regimes, corporate tax structure — none of these are damaged by kinetic conflict. They're institutional assets embedded in law. This is the part of the UAE model that most clearly survives any military scenario short of regime change. The 75% non-oil GDP share reflects built infrastructure and institutional frameworks, not just activity flows.",
+    bear: "Bear narrative sometimes implies institutional collapse. This confuses military risk with governance risk — they're independent variables. UAE institutional quality (rule of law, contract enforcement, regulatory clarity) is a stock, not a flow."
+  },
+  oil: {
+    title: "Oil windfall accumulation",
+    verdict: "Temporary tailwind — generates deployable capital during the crisis itself",
+    body: "Elevated oil prices during conflict generate enormous revenue even if export volumes dip. This is the windfall paradox: the crisis that damages activity simultaneously builds the fiscal buffer for recovery. The modelling question is what percentage of windfall revenue accumulates as deployable capital vs. gets consumed by defence spending and emergency fiscal measures.",
+    bear: "Bear narrative ignores this entirely. Most crisis models focus on GDP contraction without netting the revenue windfall against it. Goldman's ~5% GDP contraction estimate doesn't appear to model the offsetting fiscal accumulation."
+  },
+  fdi: {
+    title: "FDI redirection",
+    verdict: "Temporary — FDI follows returns and regulatory quality, both of which survive",
+    body: "FDI will pause during active conflict — that's mechanical. The structural question is whether it permanently redirects. FDI decisions are driven by risk-adjusted returns, regulatory environment, and market access. If those fundamentals survive (they likely do), the FDI recovers. The lag is 2-4 quarters after stabilisation, based on historical patterns from other conflict-affected investment destinations.",
+    bear: "Bear narrative says: 'No one will invest in a war zone.' This confuses present conditions with forward expectations. Investors in March 2020 who waited for 'certainty' missed the recovery. The same applies to FDI decisions made during vs. after conflict."
+  },
+  sentiment: {
+    title: "Consumer & investor sentiment",
+    verdict: "Temporary — V-shaped pattern well-documented",
+    body: "The June 2025 precedent is instructive: Saudi consumer sentiment dropped but recovered within a month. GCC stock indices showed a V-shaped rebound by end of June. Sentiment is a flow variable that tracks news cycles, not structural fundamentals. The question is whether repeated shocks create 'sentiment scarring' — but even Israel's consumer economy recovers rapidly from each conflict cycle.",
+    bear: "Bear narrative treats sentiment collapse as self-reinforcing. Historical evidence says the opposite: sentiment overshoots on the downside and mean-reverts quickly once the news cycle shifts."
+  },
+  gcc: {
+    title: "GCC coordination dynamics",
+    verdict: "Could go either way — shared threat vs. blame dynamics",
+    body: "Post-crisis GCC dynamics are genuinely unpredictable. Shared threat can improve coordination (as after 2017 blockade resolution). But blame dynamics — especially UAE-Saudi tensions around different strategic responses — could fragment the bloc further. This matters for recovery because GCC coordination affects trade flows, investment corridors, and collective bargaining power on energy markets.",
+    bear: "This is one variable where the bear case has legitimate structural risk. If the crisis deepens the Saudi-UAE rift rather than healing it, recovery trajectories diverge rather than converge."
+  },
+  diversify: {
+    title: "Diversification momentum",
+    verdict: "Stock at risk — projects in motion can stall permanently",
+    body: "The UAE's diversification programme (tourism, tech, financial services, manufacturing) represents accumulated institutional capital. Individual projects can survive a pause. But momentum in ecosystem-building is fragile: a two-year stall in AI/tech investment while competitors accelerate could permanently shift the trajectory. The question is whether 'global champion' strategies (Mubadala's framing) survive contact with fiscal retrenchment.",
+    bear: "Legitimate concern if conflict duration extends beyond 6 months. Short conflicts preserve momentum; extended ones risk losing the coordination between public investment, private capital, and talent attraction that makes diversification work."
+  },
+  brand: {
+    title: "Safe-haven brand / reputational decay",
+    verdict: "THE critical swing variable — recovery shape depends on this",
+    body: "This is the variable that determines whether recovery is V-shaped or L-shaped. The UAE's value proposition to global capital, talent, and firms rests on 'stable, safe, predictable.' Kinetic conflict directly damages that brand. The modelling question: does it recover in 6 months (like Israel's tech sector after each war — functional, with a permanent risk premium) or permanently reset to a new equilibrium? The answer likely depends on conflict duration and on whether the UAE is perceived as a target vs. a bystander.",
+    bear: "This is the one bearish narrative that could be right. But even here, the Israel analogy matters: the tech sector operates at ~85-90% of counterfactual despite repeated wars. The brand takes a hit but doesn't go to zero. Structural risk premium ≠ structural break."
+  },
+  network: {
+    title: "Talent & firm network effects",
+    verdict: "Threshold risk — below critical mass, the cluster effect dies",
+    body: "This is the variable with the sharpest nonlinearity. Network effects in business clusters (Dubai's financial/logistics hub, Abu Dhabi's energy/sovereign capital hub) depend on density. Lose 10% of firms/talent and the network is fine. Lose 30% and you may cross a tipping point where the remaining firms can't sustain the ecosystem. The question is where the threshold sits and whether temporary departures become permanent based on what people find (or don't find) in competitor cities.",
+    bear: "Legitimate structural risk, but subject to the absorption constraint (see below). The bear case requires both mass departure AND viable alternatives. If competitor cities can't absorb the flow, departures reverse."
+  },
+  absorb: {
+    title: "Competitor absorption capacity",
+    verdict: "Structural constraint that LIMITS permanent loss",
+    body: "This is the variable most bearish narratives ignore. Singapore has 5.6M people and hard physical limits. London is expensive and post-Brexit constrained. Riyadh is building but 3-5 years from matching UAE infrastructure. Istanbul has political risk of its own. The question: what percentage of displaced capital, talent, and firms actually has somewhere viable to go vs. cycling back once conditions stabilise? Historical evidence from Hong Kong exodus suggests 30-40% of departures reverse within 2 years.",
+    bear: "Bear narrative assumes infinite absorption capacity in competitor cities. This is empirically false. Hard physical, regulatory, and cultural constraints mean a large share of 'displaced' activity has no permanent alternative and returns."
+  }
+};
+
+function show(key) {
+  const d = data[key];
+  const panel = document.getElementById('detail');
+  document.getElementById('d-title').textContent = d.title;
+  document.getElementById('d-verdict').textContent = d.verdict;
+  document.getElementById('d-body').textContent = d.body;
+  document.getElementById('d-bear').textContent = d.bear;
+  panel.classList.add('active');
+  // Set active pill
+  document.querySelectorAll('.var-pill').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+</script>
