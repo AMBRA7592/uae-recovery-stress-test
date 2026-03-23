@@ -230,7 +230,7 @@ function runSim(params,n){
   }};
 }
 
-// ── Scenarios ──────────────────────────────────────────────
+// ── Scenarios (unchanged) ─────────────────────────────────
 const BP={
   brandDecayHalfLifeMonths:9, brandPermanentDiscount:.06,
   networkDepartureRatePeak:.15, absorptionCap:.35,
@@ -241,7 +241,7 @@ const BP={
   preWarOilPrice:70
 };
 const N_PATHS = 1500;
-const SLIDER_PATHS = 200; // lighter sim for interactive slider
+const SLIDER_PATHS = 200;
 const SCEN=[
   {id:"base",  label:"Base",   sub:"8-week conflict · V-shaped recovery",   wk:8,  params:{...BP,conflictDurationWeeks:8, triggerEventRate:1.2}},
   {id:"adverse",label:"Adverse",sub:"16-week conflict · Delayed U-shape", wk:16, params:{...BP,conflictDurationWeeks:16,oilPriceDuringConflict:125,triggerEventRate:1.2}},
@@ -249,15 +249,16 @@ const SCEN=[
 ];
 const PRESETS = [{id:"base",label:"Base",wk:8},{id:"adverse",label:"Adverse",wk:16},{id:"severe",label:"Severe",wk:26}];
 
-// ── Design Tokens ─────────────────────────────────────────
+// ── Design Tokens v2 ──────────────────────────────────────
 const T = {
   bg: "#08090a", surface: "#0f1012", surfaceRaised: "#151719", surfaceHover: "#1a1c1f",
   rule: "#222528", ruleSoft: "#191b1e",
   t1: "#f0f0f0", t2: "#b4b8bd", t3: "#787e86", t4: "#50565e",
   green: "#42be65", orange: "#ff832b", red: "#ee5396", warn: "#fa4d56", blue: "#33b1ff",
+  accent: "#a78bfa", // purple for callouts
 };
 const ACCENT = { base: T.green, adverse: T.orange, severe: T.red };
-const F = { d: "'Fraunces','Georgia',serif", n: "'Sora','Helvetica Neue',sans-serif" };
+const F = { d: "'Cormorant Garamond','Georgia',serif", n: "'Sora','Helvetica Neue',sans-serif" };
 
 // ── Utility ───────────────────────────────────────────────
 function useIsMobile(bp=860){
@@ -265,43 +266,75 @@ function useIsMobile(bp=860){
   useEffect(()=>{const c=()=>s(window.innerWidth<bp);c();window.addEventListener("resize",c);return()=>window.removeEventListener("resize",c)},[bp]);
   return m;
 }
-
 function lerp(a,b,t){return a+(b-a)*Math.max(0,Math.min(1,t))}
-
-// Interpolate params and accent for any duration
 function paramsForWeeks(wk){
   const oil = wk<=8?110:wk<=16?lerp(110,125,(wk-8)/8):wk<=26?lerp(125,140,(wk-16)/10):140;
   const tr = wk<=16?1.2:wk<=26?lerp(1.2,1.8,(wk-16)/10):1.8;
   return {...BP, conflictDurationWeeks:wk, oilPriceDuringConflict:oil, triggerEventRate:tr};
 }
 function accentForWeeks(wk){
-  // Smooth HSL interpolation: green(145,72%,50%) → orange(25,100%,58%) → red(340,82%,63%)
   if(wk<=8) return T.green;
   if(wk>=26) return T.red;
-  if(wk<=16){
-    const t=(wk-8)/8;
-    const h=Math.round(lerp(145,25,t));
-    const s=Math.round(lerp(72,100,t));
-    const l=Math.round(lerp(50,58,t));
-    return `hsl(${h},${s}%,${l}%)`;
-  }
-  const t=(wk-16)/10;
-  const h=Math.round((lerp(25,-20,t)+360)%360); // wrap through 0 to avoid blue
-  const s=Math.round(lerp(100,82,t));
-  const l=Math.round(lerp(58,63,t));
-  return `hsl(${h},${s}%,${l}%)`;
+  if(wk<=16){const t=(wk-8)/8;const h=Math.round(lerp(145,25,t));const s=Math.round(lerp(72,100,t));const l=Math.round(lerp(50,58,t));return `hsl(${h},${s}%,${l}%)`;}
+  const t=(wk-16)/10;const h=Math.round((lerp(25,-20,t)+360)%360);const s=Math.round(lerp(100,82,t));const l=Math.round(lerp(58,63,t));return `hsl(${h},${s}%,${l}%)`;
 }
 
-// ── Shared Components ─────────────────────────────────────
-function SectionLabel({children, number}){
+// ── Shared Layout Components ──────────────────────────────
+
+// Full-width section wrapper with generous padding
+function Section({children, id, noBorder, style}){
   return(
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-      {number && <span style={{fontFamily:F.n,fontSize:11,fontWeight:500,color:T.t4,background:T.surfaceRaised,borderRadius:4,padding:"3px 8px",letterSpacing:"0.04em"}}>{number}</span>}
-      <span style={{fontFamily:F.n,fontSize:11,letterSpacing:"0.12em",textTransform:"uppercase",color:T.t3,fontWeight:400}}>{children}</span>
+    <section id={id} style={{
+      padding:"80px 64px",
+      maxWidth:1200, margin:"0 auto",
+      borderTop:noBorder?"none":"1px solid "+T.rule,
+      ...style,
+    }}>
+      {children}
+    </section>
+  );
+}
+
+// Mobile-aware section
+function SectionM({children, id, noBorder, mobile, style}){
+  return(
+    <section id={id} style={{
+      padding:mobile?"48px 20px":"80px 64px",
+      maxWidth:1200, margin:"0 auto",
+      borderTop:noBorder?"none":"1px solid "+T.rule,
+      ...style,
+    }}>
+      {children}
+    </section>
+  );
+}
+
+// Section kicker label
+function Kicker({children, color}){
+  return <div style={{fontFamily:F.n,fontSize:11,letterSpacing:"0.14em",textTransform:"uppercase",color:color||T.accent,fontWeight:500,marginBottom:16}}>{children}</div>;
+}
+
+// Callout block (purple left border)
+function Callout({children}){
+  return(
+    <div style={{borderLeft:"3px solid "+T.accent,paddingLeft:20,margin:"24px 0"}}>
+      <p style={{fontFamily:F.n,fontSize:13,lineHeight:1.75,color:T.t2,margin:0,fontWeight:300}}>{children}</p>
     </div>
   );
 }
 
+// Big stat display
+function BigStat({value, label, color, sub}){
+  return(
+    <div style={{padding:"32px 0"}}>
+      <div style={{fontFamily:F.n,fontSize:56,fontWeight:200,color:color||T.t1,letterSpacing:"-0.04em",lineHeight:1}}>{value}</div>
+      <div style={{fontFamily:F.n,fontSize:12,color:T.t3,marginTop:10,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:400}}>{label}</div>
+      {sub&&<div style={{fontFamily:F.n,fontSize:11,color:T.t4,marginTop:4,fontWeight:300}}>{sub}</div>}
+    </div>
+  );
+}
+
+// Stat for metrics row
 function Stat({label,value,color,sub,delta}){return(<div>
   <div style={{fontFamily:F.n,fontSize:24,fontWeight:200,color:color||T.t1,letterSpacing:"-0.03em",lineHeight:1}}>{value}</div>
   <div style={{fontFamily:F.n,fontSize:10,color:T.t3,marginTop:6,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:400}}>{label}</div>
@@ -309,7 +342,50 @@ function Stat({label,value,color,sub,delta}){return(<div>
   {delta&&<div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:2,fontWeight:400,fontStyle:"italic"}}>{delta}</div>}
 </div>)}
 
-function MiniStat({label,value,color}){return(<div><div style={{fontFamily:F.n,fontSize:12,fontWeight:500,color:color||T.t2}}>{value}</div><div style={{fontFamily:F.n,fontSize:9,color:T.t4,marginTop:1,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div></div>)}
+// Source citation
+function Source({children}){
+  return <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:24,fontWeight:300}}>Source: {children}</div>;
+}
+
+// Left-right layout (text left, visual right)
+function SplitRow({left, right, mobile, ratio}){
+  const l = ratio || "40%";
+  const r = ratio ? `calc(100% - ${ratio} - 48px)` : "55%";
+  if(mobile) return <div>{left}<div style={{marginTop:32}}>{right}</div></div>;
+  return(
+    <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
+      <div style={{width:l,flexShrink:0}}>{left}</div>
+      <div style={{flex:1}}>{right}</div>
+    </div>
+  );
+}
+
+// Sticky nav
+function StickyNav({sections, mobile}){
+  if(mobile) return null;
+  return(
+    <nav style={{
+      position:"sticky",top:0,zIndex:100,
+      background:"rgba(8,9,10,0.92)",
+      backdropFilter:"blur(12px)",
+      borderBottom:"1px solid "+T.rule,
+      padding:"0 64px",
+    }}>
+      <div style={{maxWidth:1200,margin:"0 auto",display:"flex",gap:0,overflow:"auto"}}>
+        {sections.map(s=>(
+          <a key={s.id} href={"#"+s.id} style={{
+            fontFamily:F.n,fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",
+            color:T.t4,fontWeight:400,padding:"14px 20px",textDecoration:"none",
+            whiteSpace:"nowrap",transition:"color 0.2s",
+          }}
+          onMouseEnter={e=>e.target.style.color=T.t2}
+          onMouseLeave={e=>e.target.style.color=T.t4}
+          >{s.label}</a>
+        ))}
+      </div>
+    </nav>
+  );
+}
 
 // ── Chart Tooltip ─────────────────────────────────────────
 function ChartTip({active,payload,accent}){
@@ -324,7 +400,7 @@ function ChartTip({active,payload,accent}){
   );
 }
 
-// ── Hero Overlay Chart (all 3 bands) ──────────────────────
+// ── Hero Chart (all 3 bands) ──────────────────────────────
 function HeroChart({results, mobile}){
   const merged = results[0].result.ts.map((row, i) => {
     const out = { month: row.month, label: row.label };
@@ -340,7 +416,7 @@ function HeroChart({results, mobile}){
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={mobile ? 300 : 400}>
+      <ResponsiveContainer width="100%" height={mobile ? 320 : 440}>
         <AreaChart data={merged} margin={{top:32,right:16,left:8,bottom:12}}>
           <CartesianGrid stroke={T.ruleSoft} horizontal={true} vertical={false} strokeDasharray="2 6"/>
           <XAxis dataKey="month" tick={{fontSize:11,fill:T.t4,fontFamily:F.n}} tickFormatter={v=>v%12===0?(v===0?"Now":"Year "+(v/12)):""} stroke={T.rule} tickLine={false} axisLine={{stroke:T.rule}}/>
@@ -360,20 +436,17 @@ function HeroChart({results, mobile}){
             <ReferenceLine key={sc.id} x={sc.ce} stroke={sc.accent} strokeDasharray="4 3" strokeWidth={1} strokeOpacity={0.5}
               label={{value:sc.label+" ends",position:"top",fontSize:9,fill:sc.accent,fontFamily:F.n,dy:4+i*13}}/>
           ))}
-          {/* All three bands — severe first (widest, lowest opacity), then adverse, then base */}
           <Area type="monotone" dataKey="severe_bandLo" stackId="sevBand" stroke="none" fill="transparent" isAnimationActive={false}/>
           <Area type="monotone" dataKey="severe_bandHi" stackId="sevBand" stroke="none" fill={ACCENT.severe} fillOpacity={0.08} isAnimationActive={false}/>
           <Area type="monotone" dataKey="adverse_bandLo" stackId="advBand" stroke="none" fill="transparent" isAnimationActive={false}/>
           <Area type="monotone" dataKey="adverse_bandHi" stackId="advBand" stroke="none" fill={ACCENT.adverse} fillOpacity={0.1} isAnimationActive={false}/>
           <Area type="monotone" dataKey="base_bandLo" stackId="baseBand" stroke="none" fill="transparent" isAnimationActive={false}/>
           <Area type="monotone" dataKey="base_bandHi" stackId="baseBand" stroke="none" fill={ACCENT.base} fillOpacity={0.15} isAnimationActive={false}/>
-          {/* P50 lines */}
           <Line type="monotone" dataKey="severe_p50" stroke={ACCENT.severe} strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line type="monotone" dataKey="adverse_p50" stroke={ACCENT.adverse} strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line type="monotone" dataKey="base_p50" stroke={ACCENT.base} strokeWidth={3} dot={false} isAnimationActive={false}/>
         </AreaChart>
       </ResponsiveContainer>
-      {/* Legend */}
       <div style={{display:"flex",gap:24,marginTop:16,flexWrap:"wrap",alignItems:"center"}}>
         {results.map(sc => (<div key={sc.id} style={{display:"flex",alignItems:"center",gap:8,fontFamily:F.n,fontSize:11}}>
           <div style={{width:20,height:3,background:ACCENT[sc.id],borderRadius:2}}/><span style={{color:ACCENT[sc.id],fontWeight:500}}>{sc.label}</span><span style={{color:T.t4,fontWeight:300}}>{sc.wk}wk</span>
@@ -413,7 +486,7 @@ function ScenarioGDPChart({data, accent, ce, h}){
 function DivergenceChart({data, ce, h}){
   const gapData=data.map(d=>({month:d.month,label:d.label,gap:((d.confMed||100)-(d.physMed||100))}));
   return(
-    <ResponsiveContainer width="100%" height={h||160}>
+    <ResponsiveContainer width="100%" height={h||180}>
       <AreaChart data={gapData} margin={{top:8,right:12,left:4,bottom:8}}>
         <CartesianGrid stroke={T.ruleSoft} horizontal={true} vertical={false} strokeDasharray="2 6"/>
         <XAxis dataKey="month" tick={{fontSize:10,fill:T.t4,fontFamily:F.n}} tickFormatter={v=>v%6===0?"M+"+v:""} stroke={T.rule} tickLine={false} axisLine={{stroke:T.rule}}/>
@@ -464,7 +537,7 @@ function SectorRecoveryBars({sRec}){
   );
 }
 
-// ── Duration Slider with Preset Snaps ─────────────────────
+// ── Duration Slider ───────────────────────────────────────
 function DurationSlider({weeks, onChange, mobile}){
   return(
     <div style={{marginBottom:32}}>
@@ -507,14 +580,10 @@ function DurationSlider({weeks, onChange, mobile}){
         `}</style>
         <input type="range" min={4} max={30} step={1} value={weeks}
           onChange={e=>onChange(parseInt(e.target.value))}
-          style={{
-            width:"100%",height:6,borderRadius:3,
-            appearance:"none",WebkitAppearance:"none",
+          style={{width:"100%",height:6,borderRadius:3,appearance:"none",WebkitAppearance:"none",
             background:`linear-gradient(90deg, ${T.green} 0%, ${T.orange} 46%, ${T.red} 100%)`,
-            outline:"none",cursor:"pointer",opacity:0.7,
-          }}
+            outline:"none",cursor:"pointer",opacity:0.7}}
         />
-        {/* Tick marks for presets */}
         <div style={{position:"relative",height:16,marginTop:4}}>
           {PRESETS.map(p=>{
             const pct=((p.wk-4)/(30-4))*100;
@@ -526,18 +595,16 @@ function DurationSlider({weeks, onChange, mobile}){
   );
 }
 
-// ── Main ───────────────────────────────────────────────────
-export default function UAEStressTest(){
+// ── Main v2 ───────────────────────────────────────────────
+export default function UAEStressTestV2(){
   const mobile=useIsMobile();
   const [activeWeeks, setActiveWeeks] = useState(8);
   const deepDiveRef = useRef(null);
 
-  // ── Progressive loading: defer heavy sim to after first paint ──
+  // Progressive loading
   const [results, setResults] = useState(null);
   const [simReady, setSimReady] = useState(false);
-
   useEffect(() => {
-    // Run on next frame so masthead/findings paint first
     const id = requestAnimationFrame(() => {
       const r = SCEN.map(sc => ({...sc, result: runSim(sc.params, N_PATHS)}));
       setResults(r);
@@ -545,7 +612,6 @@ export default function UAEStressTest(){
     });
     return () => cancelAnimationFrame(id);
   }, []);
-
   const baseM = results ? results[0].result.m : null;
 
   const selectAndScroll = useCallback((wk) => {
@@ -553,29 +619,26 @@ export default function UAEStressTest(){
     setTimeout(() => deepDiveRef.current?.scrollIntoView({behavior:"smooth",block:"start"}), 50);
   }, []);
 
-  // Live sim for the slider — 200 paths, recomputes on drag
+  // Slider result
   const sliderResult = useMemo(()=>{
     const p = paramsForWeeks(activeWeeks);
     return runSim(p, SLIDER_PATHS);
   },[activeWeeks]);
 
-  // Use precomputed results if on an exact preset AND sim is ready, slider result otherwise
   const isPreset = PRESETS.find(p=>p.wk===activeWeeks);
   const activeResult = (isPreset && results) ? results.find(r=>r.id===isPreset.id).result : sliderResult;
   const activeAccent = accentForWeeks(activeWeeks);
   const am = activeResult.m;
   const ce = Math.round(activeWeeks / 4.33);
 
-  // Deltas vs base (null-safe)
   const deltaR50 = (!baseM||am.r50===">48"||baseM.r50===">48") ? null : parseInt(am.r50)-parseInt(baseM.r50);
   const deltaTip = baseM ? parseInt(am.tipShare)-parseInt(baseM.tipShare) : 0;
   const deltaG48 = baseM ? (parseFloat(am.g48)-parseFloat(baseM.g48)).toFixed(1) : "0.0";
 
-  // Loading placeholder component
   const Loading = ({h}) => (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:h||200,color:T.t4,fontFamily:F.n,fontSize:12,fontWeight:300}}>
       <div style={{textAlign:"center"}}>
-        <div style={{marginBottom:8,opacity:0.6}}>Running {N_PATHS.toLocaleString()} Monte Carlo paths × 3 scenarios...</div>
+        <div style={{marginBottom:8,opacity:0.6}}>Computing {N_PATHS.toLocaleString()} paths × 3 scenarios...</div>
         <div style={{width:120,height:2,background:T.rule,borderRadius:1,margin:"0 auto",overflow:"hidden"}}>
           <div style={{width:"40%",height:"100%",background:`linear-gradient(90deg, ${T.green}, ${T.orange}, ${T.red})`,borderRadius:1,animation:"loading 1.5s ease-in-out infinite alternate"}}/>
         </div>
@@ -583,35 +646,52 @@ export default function UAEStressTest(){
     </div>
   );
 
+  const NAV_SECTIONS = [
+    {id:"thesis",label:"Thesis"},
+    {id:"evidence",label:"Evidence"},
+    {id:"findings",label:"Findings"},
+    {id:"explore",label:"Explore"},
+    {id:"monitor",label:"Monitor"},
+    {id:"method",label:"Method"},
+  ];
+
   return(
     <div style={{background:T.bg,color:T.t1,fontFamily:F.n,minHeight:"100vh",WebkitFontSmoothing:"antialiased"}}>
-      <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,400;9..144,500&family=Sora:wght@200;300;400;500;600&display=swap" rel="stylesheet"/>
-      <style>{`@keyframes loading { from {transform:translateX(-60%)} to {transform:translateX(200%)} }`}</style>
+      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Sora:wght@200;300;400;500;600&display=swap" rel="stylesheet"/>
+      <style>{`@keyframes loading { from {transform:translateX(-60%)} to {transform:translateX(200%)} } html {scroll-behavior:smooth}`}</style>
 
-      {/* ═══ ACT 1: THE CLAIM ═══ */}
-      <header style={{padding:mobile?"40px 20px 32px":"72px 64px 48px",maxWidth:1200,margin:"0 auto"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+      {/* ═══ STICKY NAV ═══ */}
+      <StickyNav sections={NAV_SECTIONS} mobile={mobile}/>
+
+      {/* ═══ HERO: Title + thesis ═══ */}
+      <header id="thesis" style={{padding:mobile?"60px 20px 48px":"120px 64px 80px",maxWidth:1200,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:32}}>
           <span style={{fontFamily:F.n,fontSize:10,letterSpacing:"0.16em",textTransform:"uppercase",color:T.t4,fontWeight:400}}>Research Note</span>
           <span style={{width:1,height:12,background:T.rule}}/>
           <span style={{fontFamily:F.n,fontSize:10,letterSpacing:"0.16em",textTransform:"uppercase",color:T.t4,fontWeight:400}}>March 2026</span>
         </div>
-        <h1 style={{fontFamily:F.d,fontSize:mobile?32:48,fontWeight:200,lineHeight:1.08,margin:0,letterSpacing:"-0.025em",color:T.t1,maxWidth:720}}>After the Strikes</h1>
-        <h2 style={{fontFamily:F.d,fontSize:mobile?17:22,fontWeight:300,lineHeight:1.35,margin:"10px 0 0",color:T.t3,fontStyle:"italic",letterSpacing:"-0.005em"}}>What determines the Shape of UAE Recovery</h2>
-        <div style={{width:48,height:1,marginTop:36,background:`linear-gradient(90deg, ${T.green}, ${T.orange}, ${T.red})`,borderRadius:1}}/>
 
-        {/* One-breath summary */}
-        <p style={{fontFamily:F.d,fontSize:mobile?16:19,lineHeight:1.6,color:T.t1,margin:"32px 0 0",fontWeight:300,maxWidth:700}}>
-          Conflict duration is the regime variable. Below ~12 weeks, the UAE economy recovers in a V. Above ~16, it doesn't — because reputational damage, ecosystem attrition, and reconstruction delays compound long enough to change the shape.
-        </p>
+        <h1 style={{fontFamily:F.d,fontSize:mobile?40:72,fontWeight:300,lineHeight:1.05,margin:0,letterSpacing:"-0.02em",color:T.t1,maxWidth:800}}>After the Strikes</h1>
+        <h2 style={{fontFamily:F.d,fontSize:mobile?19:28,fontWeight:300,lineHeight:1.35,margin:"12px 0 0",color:T.t3,fontStyle:"italic"}}>What determines the shape of UAE recovery</h2>
 
-        {/* Context */}
-        <p style={{fontFamily:F.n,fontSize:12,lineHeight:1.75,color:T.t3,marginTop:20,maxWidth:640,fontWeight:300}}>
+        <div style={{width:48,height:1,marginTop:48,background:`linear-gradient(90deg, ${T.green}, ${T.orange}, ${T.red})`,borderRadius:1}}/>
+
+        <div style={{marginTop:48,maxWidth:640}}>
+          <p style={{fontFamily:F.d,fontSize:mobile?20:24,lineHeight:1.6,color:T.t1,margin:0,fontWeight:300}}>
+            Conflict duration is the regime variable.
+          </p>
+          <p style={{fontFamily:F.n,fontSize:14,lineHeight:1.8,color:T.t3,margin:"20px 0 0",fontWeight:300}}>
+            Below ~12 weeks, the UAE economy recovers in a V. Above ~16, it doesn't — because reputational damage, ecosystem attrition, and reconstruction delays compound long enough to change the shape.
+          </p>
+        </div>
+
+        <Callout>
           Every major institution modeled the contraction. None modeled the recovery forward with parameterized dynamics. This scenario engine does: drag conflict duration from 4 to 30 weeks and watch the recovery regime shift in real time.
-        </p>
+        </Callout>
 
-        {/* Caveats — elevated */}
-        <div style={{marginTop:24,padding:"16px 20px",background:T.surface,borderRadius:8,border:"1px solid "+T.rule,maxWidth:640}}>
-          <p style={{fontFamily:F.n,fontSize:11,lineHeight:1.7,color:T.t3,margin:0,fontWeight:300}}>
+        {/* Bullish caveat */}
+        <div style={{marginTop:8,padding:"20px 24px",background:T.surface,borderRadius:8,border:"1px solid "+T.rule,maxWidth:640}}>
+          <p style={{fontFamily:F.n,fontSize:11.5,lineHeight:1.75,color:T.t3,margin:0,fontWeight:300}}>
             <span style={{fontWeight:500,color:T.t2}}>The base case is bullish on UAE recovery.</span>{" "}
             It assumes conflict containment, an intact Fujairah export corridor, and continued global demand at current levels.
             Two risks the model does not capture:{" "}
@@ -621,103 +701,144 @@ export default function UAEStressTest(){
           </p>
         </div>
 
-        <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:16,letterSpacing:"0.06em",fontWeight:400}}>Not a point forecast · {N_PATHS.toLocaleString()} Monte Carlo paths × 3 scenarios × 48 months · 7 sectors</div>
+        <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:20,letterSpacing:"0.06em",fontWeight:400}}>
+          Not a point forecast · {N_PATHS.toLocaleString()} Monte Carlo paths × 3 scenarios × 48 months
+        </div>
       </header>
 
-      {/* ═══ ACT 2: THE EVIDENCE ═══ */}
-      <section style={{padding:mobile?"40px 20px":"56px 64px",maxWidth:1200,margin:"0 auto"}}>
-        <SectionLabel number="01">GDP Recovery Paths · All Scenarios</SectionLabel>
+      {/* ═══ EVIDENCE: Hero chart ═══ */}
+      <SectionM id="evidence" mobile={mobile}>
+        <Kicker>The Evidence</Kicker>
+        <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 32px",letterSpacing:"-0.02em"}}>Three durations, three shapes</h3>
+
         {simReady ? <>
           <HeroChart results={results} mobile={mobile}/>
-          {/* Disclaimer near the chart */}
-          <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:20,lineHeight:1.7,maxWidth:600}}>
+          <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:24,lineHeight:1.7,maxWidth:600}}>
+            <span style={{color:T.t3,fontWeight:500}}>Distributional scenarios, not predictions.</span>{" "}
             GDP indexed to 100 = pre-crisis level. Solid lines = median across {N_PATHS.toLocaleString()} paths.
-            Shaded bands = P10–P90 uncertainty per scenario. Year 4 = month 48.
+            Shaded bands = P10–P90 per scenario.
           </div>
-        </> : <Loading h={mobile?340:440}/>}
+        </> : <Loading h={mobile?360:480}/>}
 
-        {/* Mechanism strip — 4 steps */}
-        <div style={{marginTop:32,paddingTop:16,borderTop:"1px solid "+T.rule,display:"flex",alignItems:"center",gap:mobile?8:16,flexWrap:"wrap",fontFamily:F.n,fontSize:mobile?10:11,color:T.t3}}>
-          {["Duration","Reputational damage + ecosystem attrition + reconstruction delay","Regime shift","Recovery shape"].map((step,i,arr)=>(
-            <span key={i} style={{display:"flex",alignItems:"center",gap:mobile?8:16}}>
-              <span style={{color:i===0?T.green:i===arr.length-1?T.t1:T.t4,fontWeight:i===0||i===arr.length-1?500:300}}>{step}</span>
-              {i<arr.length-1 && <span style={{color:T.rule,fontSize:14}}>→</span>}
-            </span>
-          ))}
-        </div>
-
-        {/* Comparison Table */}
-        {simReady && <div style={{marginTop:40,background:T.surface,borderRadius:10,border:"1px solid "+T.rule,overflow:"hidden"}}>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:F.n,fontSize:12}}>
-              <thead>
-                <tr style={{background:T.surfaceRaised}}>
-                  {["Scenario","Duration","Peak drawdown","Full recovery","Year 4 GDP","Reputational damage","Ecosystem attrition","Tipping","Deployment"].map((h,i) => (
-                    <th key={i} style={{textAlign:i===0?"left":"right",padding:"12px 14px",fontSize:10,fontWeight:400,color:T.t4,textTransform:"uppercase",letterSpacing:"0.08em",borderBottom:"1px solid "+T.rule}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map(({id,label,wk,result},idx) => {
-                  const m=result.m; const ac=ACCENT[id];
-                  return (
-                    <tr key={id} style={{borderBottom:idx<results.length-1?"1px solid "+T.ruleSoft:"none",cursor:"pointer",transition:"background 0.15s"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHover}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                      onClick={()=>selectAndScroll(wk)}>
-                      <td style={{padding:"14px 14px",fontWeight:500,color:ac}}><span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:ac}}/>{label}</span></td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:T.t2,fontWeight:300}}>{wk} weeks</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:T.warn,fontWeight:500}}>−{m.draw50}%</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:ac,fontWeight:400}}>{m.r50===">48"?"> 4 years":m.r50+" mo"}</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:parseFloat(m.g48)>=100?T.green:T.orange,fontWeight:600,fontSize:13}}>{m.g48}</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.peakBrand}%</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.peakNet}%</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:parseInt(m.tipShare)>15?T.warn:T.green,fontWeight:400}}>{m.tipShare}%</td>
-                      <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.swfStart}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {/* Comparison table */}
+        {simReady && <>
+          <div style={{marginTop:56}}>
+            <Kicker color={T.t4}>Scenario Comparison</Kicker>
           </div>
-          <div style={{padding:"12px 14px",borderTop:"1px solid "+T.ruleSoft,fontFamily:F.n,fontSize:10,color:T.t4}}>
-            P10 tail risk: {results.map(({id,label,result},i) => (
-              <span key={id}><span style={{color:ACCENT[id],fontWeight:500}}>{label}</span> −{result.m.draw10}%{i<results.length-1?" · ":""}</span>
-            ))}
-          </div>
-        </div>}
-      </section>
-
-      {/* ═══ ACT 3: FINDINGS (trimmed) ═══ */}
-      <section style={{padding:mobile?"40px 20px":"56px 64px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
-        <SectionLabel number="02">Key Findings</SectionLabel>
-        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:mobile?"40px":"48px 64px"}}>
-          {[
-            {n:"01",title:"The Duration Threshold",lead:"V-to-U transition occurs between 12 and 16 weeks.",text:"Even with zero permanent reputational damage, duration alone prevents a fast V at 26 weeks. Above ~16 weeks, sovereign deployment becomes sequential and reconstruction delay creates a floor."},
-            {n:"02",title:"The Two-Hump Pattern",lead:"Confidence sectors pull ahead of physical sectors by 6+ months.",text:"Tourism and finance recover while construction and aviation are stuck in assessment — producing a plateau in aggregate GDP visible as the divergence gap departing from zero."},
-            {n:"03",title:"The Windfall Dynamic",lead:"The UAE likely exits the crisis with a larger fiscal buffer than it entered with.",text:"Elevated oil prices at ~20% defense cost share accumulate as deployable capacity. S&P\u2019s pre-crisis estimate: consolidated net assets at 184% of GDP."},
-            {n:"04",title:"The Tipping Band",lead:"Network departure damage ramps gradually through a band centered on ~25%.",text:"Base case: <10% of paths enter the band. Severe: 20–35%. The absorption constraint limits permanent loss — alternative hubs face their own capacity constraints."},
-          ].map(f=>(
-            <div key={f.n}>
-              <div style={{display:"flex",alignItems:"baseline",gap:14,marginBottom:12}}>
-                <span style={{fontFamily:F.n,fontSize:36,fontWeight:200,color:T.rule,lineHeight:1,letterSpacing:"-0.04em"}}>{f.n}</span>
-                <span style={{fontFamily:F.d,fontSize:17,fontWeight:400,color:T.t1}}>{f.title}</span>
-              </div>
-              <p style={{fontSize:14,lineHeight:1.7,color:T.t2,margin:"0 0 6px",fontWeight:400,fontFamily:F.d,fontStyle:"italic"}}>{f.lead}</p>
-              <p style={{fontSize:12,lineHeight:1.75,color:T.t3,margin:0,fontWeight:300}}>{f.text}</p>
+          <div style={{background:T.surface,borderRadius:10,border:"1px solid "+T.rule,overflow:"hidden"}}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:F.n,fontSize:12}}>
+                <thead>
+                  <tr style={{background:T.surfaceRaised}}>
+                    {["Scenario","Duration","Peak drawdown","Full recovery","Year 4 GDP","Reputational damage","Ecosystem attrition","Tipping","Deployment"].map((h,i) => (
+                      <th key={i} style={{textAlign:i===0?"left":"right",padding:"12px 14px",fontSize:10,fontWeight:400,color:T.t4,textTransform:"uppercase",letterSpacing:"0.08em",borderBottom:"1px solid "+T.rule}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map(({id,label,wk,result},idx) => {
+                    const m=result.m; const ac=ACCENT[id];
+                    return (
+                      <tr key={id} style={{borderBottom:idx<results.length-1?"1px solid "+T.ruleSoft:"none",cursor:"pointer",transition:"background 0.15s"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHover}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                        onClick={()=>selectAndScroll(wk)}>
+                        <td style={{padding:"14px 14px",fontWeight:500,color:ac}}><span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:ac}}/>{label}</span></td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:T.t2,fontWeight:300}}>{wk} weeks</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:T.warn,fontWeight:500}}>−{m.draw50}%</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:ac,fontWeight:400}}>{m.r50===">48"?"> 4 years":m.r50+" mo"}</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:parseFloat(m.g48)>=100?T.green:T.orange,fontWeight:600,fontSize:13}}>{m.g48}</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.peakBrand}%</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.peakNet}%</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:parseInt(m.tipShare)>15?T.warn:T.green,fontWeight:400}}>{m.tipShare}%</td>
+                        <td style={{padding:"14px 14px",textAlign:"right",color:T.t3,fontWeight:300}}>{m.swfStart}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
-      </section>
+            <div style={{padding:"12px 14px",borderTop:"1px solid "+T.ruleSoft,fontFamily:F.n,fontSize:10,color:T.t4}}>
+              P10 tail risk: {results.map(({id,label,result},i) => (
+                <span key={id}><span style={{color:ACCENT[id],fontWeight:500}}>{label}</span> −{result.m.draw10}%{i<results.length-1?" · ":""}</span>
+              ))}
+              <span style={{marginLeft:12,color:T.t4,fontStyle:"italic"}}>· Click any row to explore below</span>
+            </div>
+          </div>
+        </>}
+      </SectionM>
 
-      {/* ═══ ACT 4: DEEP DIVE — slider + live sim ═══ */}
-      <section ref={deepDiveRef} style={{padding:mobile?"0 20px 40px":"0 64px 56px",maxWidth:1200,margin:"0 auto"}}>
-        <SectionLabel number="03">Scenario Deep Dive</SectionLabel>
+      {/* ═══ FINDINGS: One per section, left text / right visual ═══ */}
+      <SectionM id="findings" mobile={mobile}>
+        <Kicker>Key Findings</Kicker>
+        <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 56px",letterSpacing:"-0.02em"}}>What the model reveals</h3>
+
+        {/* Finding 1 */}
+        <SplitRow mobile={mobile} left={<>
+          <div style={{fontFamily:F.n,fontSize:48,fontWeight:200,color:T.rule,lineHeight:1}}>01</div>
+          <h4 style={{fontFamily:F.d,fontSize:20,fontWeight:400,color:T.t1,margin:"12px 0 16px"}}>The Duration Threshold</h4>
+          <Callout>V-to-U transition occurs between 12 and 16 weeks. Duration alone — independent of structural damage — prevents a fast V at 26 weeks.</Callout>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300}}>Above ~16 weeks, sovereign deployment becomes sequential and reconstruction delay creates a floor below which recovery cannot be accelerated.</p>
+        </>} right={
+          <BigStat value="12–16" label="Week threshold" sub="V-shape → U-shape transition band" color={T.t1}/>
+        }/>
+
+        <div style={{height:64}}/>
+
+        {/* Finding 2 */}
+        <SplitRow mobile={mobile} left={<>
+          <div style={{fontFamily:F.n,fontSize:48,fontWeight:200,color:T.rule,lineHeight:1}}>02</div>
+          <h4 style={{fontFamily:F.d,fontSize:20,fontWeight:400,color:T.t1,margin:"12px 0 16px"}}>The Two-Hump Pattern</h4>
+          <Callout>Confidence sectors pull ahead of physical sectors by 6+ months. Tourism and finance recover while construction and aviation are stuck in assessment.</Callout>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300}}>This produces a plateau in aggregate GDP — visible as the divergence gap departing from zero — before the second acceleration begins.</p>
+        </>} right={
+          <BigStat value="6+" label="Month sector gap" sub="Confidence leads physical in extended conflicts" color={T.blue}/>
+        }/>
+
+        <div style={{height:64}}/>
+
+        {/* Finding 3 */}
+        <SplitRow mobile={mobile} left={<>
+          <div style={{fontFamily:F.n,fontSize:48,fontWeight:200,color:T.rule,lineHeight:1}}>03</div>
+          <h4 style={{fontFamily:F.d,fontSize:20,fontWeight:400,color:T.t1,margin:"12px 0 16px"}}>The Windfall Dynamic</h4>
+          <Callout>The UAE likely exits the crisis with a larger fiscal buffer than it entered with.</Callout>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300}}>Elevated oil prices at ~20% defense cost share accumulate as deployable capacity. The fiscal buffer grows during the crisis, funding the sovereign deployment that powers recovery.</p>
+          <Source>S&P AA affirmation, March 2026</Source>
+        </>} right={
+          <BigStat value="184%" label="Net assets to GDP" sub="Abu Dhabi's pre-crisis fiscal position (S&P)" color={T.green}/>
+        }/>
+
+        <div style={{height:64}}/>
+
+        {/* Finding 4 */}
+        <SplitRow mobile={mobile} left={<>
+          <div style={{fontFamily:F.n,fontSize:48,fontWeight:200,color:T.rule,lineHeight:1}}>04</div>
+          <h4 style={{fontFamily:F.d,fontSize:20,fontWeight:400,color:T.t1,margin:"12px 0 16px"}}>The Tipping Band</h4>
+          <Callout>Network departure damage ramps gradually through a band centered on ~25% — not a sharp threshold.</Callout>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300}}>Base case: fewer than 10% of paths enter the band. Severe: 20–35%. The absorption constraint limits permanent loss — alternative hubs face their own capacity constraints.</p>
+        </>} right={
+          <div>
+            <BigStat value="~25%" label="Tipping band center" sub="Departure level where return rates degrade" color={T.warn}/>
+            <div style={{display:"flex",gap:32,marginTop:16}}>
+              <div><div style={{fontFamily:F.n,fontSize:20,fontWeight:300,color:T.green}}>{"<10%"}</div><div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:4}}>Base case paths</div></div>
+              <div><div style={{fontFamily:F.n,fontSize:20,fontWeight:300,color:T.warn}}>20–35%</div><div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:4}}>Severe case paths</div></div>
+            </div>
+          </div>
+        }/>
+      </SectionM>
+
+      {/* ═══ EXPLORE: Slider deep dive ═══ */}
+      <div ref={deepDiveRef}/>
+      <SectionM id="explore" mobile={mobile}>
+        <Kicker>Explore</Kicker>
+        <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 12px",letterSpacing:"-0.02em"}}>Drag duration, watch the regime shift</h3>
+        <p style={{fontFamily:F.n,fontSize:13,color:T.t3,fontWeight:300,maxWidth:600,marginBottom:40,lineHeight:1.7}}>
+          The slider runs a live Monte Carlo simulation. Preset buttons use {N_PATHS.toLocaleString()} paths for precision. Intermediate positions run {SLIDER_PATHS} paths for responsiveness.
+        </p>
+
         <div style={{background:T.surface,borderRadius:10,border:"1px solid "+T.rule,overflow:"hidden",padding:mobile?"24px 16px":"32px 36px"}}>
-          {/* Duration slider with preset snaps */}
           <DurationSlider weeks={activeWeeks} onChange={setActiveWeeks} mobile={mobile}/>
 
-          {/* Key metrics with deltas */}
           <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(5, 1fr)",gap:mobile?20:0,marginBottom:36,paddingBottom:28,borderBottom:"1px solid "+T.rule}}>
             <Stat label="Peak drawdown" value={"−"+am.draw50+"%"} color={T.warn}/>
             <Stat label="Full recovery" value={am.r50===">48"?"> 4 years":am.r50+" months"} color={activeAccent}
@@ -730,7 +851,6 @@ export default function UAEStressTest(){
               delta={activeWeeks!==8?(deltaTip>0?"+":"")+deltaTip+"pp vs Base":null}/>
           </div>
 
-          {/* Charts */}
           <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:mobile?32:40}}>
             <div>
               <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,marginBottom:12,fontWeight:400}}>GDP · P10–P90 band · {isPreset?isPreset.label:activeWeeks+"wk"}</div>
@@ -743,23 +863,52 @@ export default function UAEStressTest(){
             </div>
           </div>
 
-          {/* Recovery bars */}
           <div style={{marginTop:36,paddingTop:28,borderTop:"1px solid "+T.rule}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
-              <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,fontWeight:400}}>Sector Recovery to 95% · Timeline</div>
-              <div style={{fontFamily:F.n,fontSize:10,color:T.t4,fontWeight:300}}>Bar = P25–P75 range · Mark = P50</div>
+              <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,fontWeight:400}}>Sector Recovery to 95%</div>
+              <div style={{fontFamily:F.n,fontSize:10,color:T.t4,fontWeight:300}}>Bar = P25–P75 · Mark = P50</div>
             </div>
             <SectorRecoveryBars sRec={activeResult.sRec}/>
           </div>
         </div>
-      </section>
+      </SectionM>
 
-      {/* ═══ REFERENCE ═══ */}
-      <section style={{padding:mobile?"40px 20px":"48px 64px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
-        <SectionLabel>Sector Definitions</SectionLabel>
-        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:"0 48px"}}>
+      {/* ═══ MONITOR: Observables ═══ */}
+      <SectionM id="monitor" mobile={mobile}>
+        <Kicker>Monitor</Kicker>
+        <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 12px",letterSpacing:"-0.02em"}}>Which scenario is materializing?</h3>
+        <p style={{fontFamily:F.n,fontSize:13,color:T.t3,fontWeight:300,maxWidth:600,marginBottom:48,lineHeight:1.7}}>
+          These indicators map to the model's state variables. When three or more align with a scenario column, that's the path you're on.
+        </p>
+
+        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr 1fr",gap:mobile?32:48}}>
+          {[
+            {label:"Reputational Damage",stateVar:"Safe-haven brand decay",color:T.warn,
+             items:["Tourism bookings & cancellations","Corporate relocation announcements","Sovereign CDS spreads","Real-estate inquiry depth"]},
+            {label:"Ecosystem Attrition",stateVar:"Firm & talent departures",color:T.orange,
+             items:["DIFC/ADGM firm registrations (net)","Expatriate visa cancellations","Freight & aviation throughput","Office vacancy & lease breaks"]},
+            {label:"Sovereign Deployment",stateVar:"Fiscal buffer → reconstruction",color:T.green,
+             items:["Fiscal package size & timing","Central bank liquidity actions","Reconstruction tendering","Port normalization rates"]},
+          ].map(o=>(
+            <div key={o.label}>
+              <div style={{fontFamily:F.n,fontSize:10,color:o.color,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6,fontWeight:500}}>{o.label}</div>
+              <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginBottom:16,fontWeight:300,fontStyle:"italic"}}>{o.stateVar}</div>
+              {o.items.map((item,i)=>(
+                <div key={i} style={{fontFamily:F.n,fontSize:12,color:T.t3,fontWeight:300,padding:"6px 0",borderBottom:"1px solid "+T.ruleSoft}}>{item}</div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </SectionM>
+
+      {/* ═══ METHOD: Sectors + Assumptions ═══ */}
+      <SectionM id="method" mobile={mobile}>
+        <Kicker color={T.t4}>Method</Kicker>
+        <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 48px",letterSpacing:"-0.02em"}}>Seven sectors, two regimes</h3>
+
+        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:"0 48px",marginBottom:56}}>
           {Object.entries(SECTORS).map(([k,s])=>(
-            <div key={k} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid "+T.ruleSoft}}>
+            <div key={k} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+T.ruleSoft}}>
               <span style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
               <span style={{fontFamily:F.n,fontSize:12,color:T.t2,flex:1,fontWeight:300}}>{s.label}</span>
               <span style={{fontFamily:F.n,fontSize:11,color:T.t4,fontWeight:400}}>{(s.w*100).toFixed(0)}%</span>
@@ -767,49 +916,48 @@ export default function UAEStressTest(){
             </div>
           ))}
         </div>
-      </section>
 
-      {/* Fix 4: Color-coded observables with explicit state-variable mapping */}
-      <section style={{padding:mobile?"40px 20px":"48px 64px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
-        <SectionLabel>Monitoring Observables</SectionLabel>
-        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr 1fr",gap:mobile?24:40,fontSize:12,lineHeight:1.8,color:T.t3,fontWeight:300}}>
-          {[
-            {label:"Reputational Damage",stateVar:"Safe-haven brand decay",color:T.warn,
-             items:"Tourism bookings & cancellation rates · Corporate relocation announcements · Sovereign CDS spreads · Real-estate inquiry depth & transaction volume"},
-            {label:"Ecosystem Attrition",stateVar:"Firm & talent network departures",color:T.orange,
-             items:"DIFC/ADGM firm registrations (net) · Expatriate visa cancellations · Freight & aviation throughput · Office vacancy & lease breaks"},
-            {label:"Sovereign Deployment",stateVar:"Fiscal buffer conversion to reconstruction",color:T.green,
-             items:"Announced fiscal package size & timing · Central bank liquidity actions · Reconstruction tendering & contract awards · Logistics & port normalization rates"},
-          ].map(o=>(<div key={o.label}>
-            <div style={{fontFamily:F.n,fontSize:10,color:o.color,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4,fontWeight:500}}>{o.label}</div>
-            <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginBottom:10,fontWeight:300,fontStyle:"italic"}}>{o.stateVar}</div>
-            {o.items}
-          </div>))}
-        </div>
-      </section>
+        <SplitRow mobile={mobile} left={<>
+          <h4 style={{fontFamily:F.n,fontSize:13,fontWeight:500,color:T.t2,margin:"0 0 12px"}}>What the model does</h4>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300,margin:0}}>
+            Decomposes GDP into seven sectors with sector-specific brand, network, and sovereign betas.
+            Implements two-regime brand decay with soft tipping band.
+            Parameterized physical assessment lag.
+            Poisson-triggered departures with path-level stress co-movement.
+            Oil windfall netted against defense costs.
+            {" "}{N_PATHS.toLocaleString()} Monte Carlo paths per scenario.
+          </p>
+        </>} right={<>
+          <h4 style={{fontFamily:F.n,fontSize:13,fontWeight:500,color:T.t2,margin:"0 0 12px"}}>What it doesn't do</h4>
+          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300,margin:0}}>
+            The two risks elevated above — <span style={{color:T.warn,fontWeight:400}}>global demand feedback</span> and <span style={{color:T.orange,fontWeight:400}}>reconstruction bottlenecks</span> — are the most consequential omissions.
+            A 26-week conflict at $140 oil likely triggers a world recession that depresses the external demand the UAE recovers into — precisely the confidence-driven sectors the model shows recovering first.
+            Also absent: intra-GCC coordination dynamics, capital market or currency effects, policy innovation that could compress assessment timelines, and potential upside from reduced long-term regional threat premiums.
+            On balance, these omissions bias toward conservatism on the recovery upside, except for the global demand channel, which biases toward optimism in the severe scenario.
+          </p>
+        </>}/>
 
-      <section style={{padding:mobile?"40px 20px":"48px 64px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
-        <SectionLabel>Assumptions & Limitations</SectionLabel>
-        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:mobile?24:48,fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300}}>
-          <div><span style={{fontWeight:500,color:T.t2}}>What the model does.</span>{" "}Decomposes GDP into seven sectors with sector-specific brand, network, and sovereign betas. Implements two-regime brand decay with soft tipping band. Parameterized physical assessment lag. Poisson-triggered departures with path-level stress co-movement. Oil windfall netted against defense costs. {N_PATHS.toLocaleString()} Monte Carlo paths per scenario.</div>
-          <div><span style={{fontWeight:500,color:T.t2}}>What it doesn't do.</span>{" "}The two risks elevated above — global demand feedback and reconstruction bottlenecks — are the most consequential omissions. Also absent: intra-GCC coordination dynamics, capital market or currency effects, policy innovation that could compress assessment timelines, and potential upside from reduced long-term regional threat premiums. On balance, these omissions bias toward conservatism on the recovery upside, except for the global demand channel, which biases toward optimism in the severe scenario.</div>
-        </div>
-        <p style={{fontSize:11.5,lineHeight:1.7,color:T.t4,marginTop:24,fontWeight:300,fontStyle:"italic",maxWidth:640}}>The UAE government's deployment of the CBUAE resilience package, its non-combatant posture, and its emphasis on de-escalation are reflected in the model's base-case assumptions.</p>
-      </section>
+        <p style={{fontSize:11.5,lineHeight:1.7,color:T.t4,marginTop:32,fontWeight:300,fontStyle:"italic",maxWidth:640}}>
+          The UAE government's deployment of the CBUAE resilience package, its non-combatant posture, and its emphasis on de-escalation are reflected in the model's base-case assumptions.
+        </p>
+      </SectionM>
 
       {/* ═══ FOOTER ═══ */}
-      <footer style={{padding:mobile?"32px 20px 48px":"40px 64px 64px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
+      <footer style={{padding:mobile?"32px 20px 48px":"48px 64px 80px",maxWidth:1200,margin:"0 auto",borderTop:"1px solid "+T.rule}}>
         <div style={{display:"flex",flexDirection:mobile?"column":"row",justifyContent:"space-between",alignItems:"flex-start",gap:mobile?20:0}}>
           <div>
-            <div style={{fontFamily:F.d,fontSize:15,fontWeight:400,color:T.t1}}>Amadeus Brandes</div>
-            <div style={{fontSize:11.5,color:T.t4,marginTop:4,fontWeight:300,fontStyle:"italic",maxWidth:380,lineHeight:1.5}}>Independent analyst. Systems theory and complexity science applied to geopolitical infrastructure dependencies.</div>
+            <div style={{fontFamily:F.d,fontSize:16,fontWeight:400,color:T.t1}}>Amadeus Brandes</div>
+            <div style={{fontSize:12,color:T.t4,marginTop:6,fontWeight:300,fontStyle:"italic",maxWidth:380,lineHeight:1.6}}>Independent analyst. Systems theory and complexity science applied to geopolitical infrastructure dependencies.</div>
           </div>
           <div style={{textAlign:mobile?"left":"right"}}>
             <div style={{fontFamily:F.n,fontSize:10,color:T.t4,fontWeight:400}}>March 2026</div>
             <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:2,fontWeight:300}}>{N_PATHS.toLocaleString()} × 3 scenarios × 48 months</div>
           </div>
         </div>
-        <p style={{fontSize:10.5,color:T.t4,marginTop:24,lineHeight:1.7,fontWeight:300,maxWidth:640}}>This model produces probability distributions across scenarios, not point forecasts. Produced during an active conflict; findings will be updated as monitoring indicators provide new calibration data.</p>
+        <p style={{fontSize:11,color:T.t4,marginTop:28,lineHeight:1.7,fontWeight:300,maxWidth:640}}>
+          This model produces probability distributions across scenarios, not point forecasts.
+          Produced during an active conflict; findings will be updated as monitoring indicators provide new calibration data.
+        </p>
       </footer>
     </div>
   );
