@@ -4,12 +4,16 @@
     "brandPermanentDiscount": 0.06,
     "networkDepartureRatePeak": 0.15,
     "absorptionCap": 0.35,
+    "oilPriceDuringConflict": 110,
     "swfDeploymentLagMonths": 6,
     "defenseCostShare": 0.20,
     "swfMultiplier": 0.10,
     "confidenceRecoveryRate": 0.012,
     "physicalRecoveryRate": 0.006,
+    "physicalAssessmentLagMonths": 3,
+    "physicalAssessmentRampMonths": 2,
     "preWarOilPrice": 70,
+    "exportVolumeFactor": 0.55,
     "nSimulations": 1500,
     "horizonMonths": 48
   },
@@ -36,6 +40,14 @@
       "triggerEventRate": 1.8
     }
   },
+  "infrastructure_toggles": {
+    "fujairah_pipeline": {
+      "description": "Habshan-Fujairah pipeline operational status. When destroyed, exportVolumeFactor drops to 0.05.",
+      "default": true,
+      "on_value": 0.55,
+      "off_value": 0.05
+    }
+  },
   "stress_tests": {
     "pure_bull": {
       "description": "Brand fully recovers, minimal permanent absorption. Tests whether duration alone prevents fast V.",
@@ -59,6 +71,13 @@
         "defenseCostShare": 0.50
       }
     },
+    "fujairah_destroyed": {
+      "description": "Habshan-Fujairah pipeline destroyed. Tests flat-critical infrastructure dependency.",
+      "overrides": {
+        "exportVolumeFactor": 0.05
+      },
+      "notes": "Collapses windfall mechanism. SWF deployment severely constrained. Confirms Fujairah as flat-critical node."
+    },
     "compressed_assessment": {
       "description": "UAE pre-positions reconstruction contracts during conflict. Tests policy intervention impact.",
       "overrides": {
@@ -68,12 +87,12 @@
     }
   },
   "sector_definitions": {
-    "tourism":    { "gdpWeight": 0.11, "shockDepth": 0.72, "recoveryType": "confidence", "notes": "Near-total collapse during active conflict. High brand sensitivity." },
-    "aviation":   { "gdpWeight": 0.08, "shockDepth": 0.65, "recoveryType": "physical",   "notes": "Typically last to recover. Sequential dependencies on airspace, routes, insurance." },
-    "finance":    { "gdpWeight": 0.12, "shockDepth": 0.22, "recoveryType": "confidence", "notes": "Lowest shock depth of confidence sectors. Typically first to recover." },
-    "realEstate": { "gdpWeight": 0.07, "shockDepth": 0.42, "recoveryType": "confidence", "notes": "Transactions freeze, not values. S&P: luxury segment weakens first." },
-    "construct":  { "gdpWeight": 0.05, "shockDepth": 0.32, "recoveryType": "physical",   "notes": "Project pauses, not cancellations. Supply-constrained recovery." },
-    "oil":        { "gdpWeight": 0.25, "shockDepth": 0.30, "recoveryType": "physical",   "notes": "Volume loss partially offset by price premium. Fujairah bypass active." },
-    "other":      { "gdpWeight": 0.32, "shockDepth": 0.12, "recoveryType": "confidence", "notes": "Lowest shock. Strong domestic demand component." }
+    "tourism":    { "gdpWeight": 0.11, "shockDepth": 0.72, "recoveryType": "confidence", "assessDelayMult": 1.0, "departureStickiness": 0.15, "notes": "AND-gated on aviation. High brand sensitivity. Low departure stickiness." },
+    "aviation":   { "gdpWeight": 0.08, "shockDepth": 0.65, "recoveryType": "physical",   "assessDelayMult": 1.6, "departureStickiness": 0.40, "notes": "Longest assessment delay. Gates tourism recovery. Sequential dependencies." },
+    "finance":    { "gdpWeight": 0.12, "shockDepth": 0.22, "recoveryType": "confidence", "assessDelayMult": 1.0, "departureStickiness": 0.65, "notes": "Highest departure stickiness. Relocated legal domiciles don't reverse quickly." },
+    "realEstate": { "gdpWeight": 0.07, "shockDepth": 0.42, "recoveryType": "confidence", "assessDelayMult": 1.0, "departureStickiness": 0.45, "notes": "Transactions freeze, not values. Moderate stickiness." },
+    "construct":  { "gdpWeight": 0.05, "shockDepth": 0.32, "recoveryType": "physical",   "assessDelayMult": 0.8, "departureStickiness": 0.20, "notes": "Fastest assessment. Government-tendered reconstruction." },
+    "oil":        { "gdpWeight": 0.25, "shockDepth": 0.30, "recoveryType": "physical",   "assessDelayMult": 1.2, "departureStickiness": 0.10, "notes": "Price-driven. Fujairah dependency modeled as binary toggle." },
+    "other":      { "gdpWeight": 0.32, "shockDepth": 0.12, "recoveryType": "confidence", "assessDelayMult": 1.0, "departureStickiness": 0.30, "notes": "Diversified. Strong domestic demand component." }
   }
 }

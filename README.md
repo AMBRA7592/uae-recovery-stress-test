@@ -2,11 +2,11 @@
 
 **An open simulation with exposed parameters and sector-level timing**
 
-*March 2026 · v2.1 · 1,500 Monte Carlo paths per scenario · 48-month horizon*
+*March 2026 · v3.0 · 1,500 Monte Carlo paths per scenario · 48-month horizon*
 
 *This model produces probability distributions across scenarios, not point forecasts. The appropriate use is to compare recovery paths and identify the parameters that drive divergence, not to select one scenario as the expected outcome.*
 
-*The base case is bullish on UAE recovery. This reflects the model's structural assumptions: Abu Dhabi's sovereign balance sheet (184% net assets to GDP per S&P), the oil windfall at elevated prices, and the absorption constraint that limits permanent network loss. Two risks the model does not capture: **global demand feedback** — a 26-week conflict at $140 oil likely triggers a world recession that depresses the external demand the UAE recovers into; and **reconstruction bottlenecks** — labour shortages, material inflation, and permitting backlogs that would slow physical-sector recovery below the model's assessment-delay assumption. If either obtains, the severe scenario understates downside risk. Readers should treat the base case as conditional on conflict containment, not as a default expectation.*
+*The base case is bullish on UAE recovery. This reflects the model's structural assumptions: Abu Dhabi's sovereign balance sheet (184% net assets to GDP per S&P), the oil windfall at elevated prices, and the absorption constraint that limits permanent network loss. Two risks partially captured: **global demand feedback** — modeled as a linear drag on confidence sectors, but a 26-week conflict at $140 oil likely triggers non-linear recession dynamics the crude term underestimates; and **reconstruction bottlenecks** — labour shortages, material inflation, and permitting backlogs that would slow physical-sector recovery below the model's assessment-delay assumption. The **Fujairah pipeline** — previously the single highest-impact unmodeled risk — is now testable via a binary toggle in the Explore section. If either global demand feedback or reconstruction bottlenecks materializes beyond the model's approximation, the severe scenario understates downside risk. Readers should treat the base case as conditional on conflict containment, not as a default expectation.*
 
 ---
 
@@ -28,7 +28,7 @@ This repository contains a model that answers those questions. The parameters ar
 
 **Conflict duration is the regime variable. Below ~12 weeks, the UAE economy recovers in a V. Above ~16, it doesn't — because reputational damage, firm departures, and reconstruction delays compound long enough to change the shape.**
 
-The phase transition from V-shaped to U-shaped recovery occurs at approximately 12–16 weeks of active conflict. Below that threshold, both confidence-driven sectors (financial services, tourism, real estate) and physical sectors (aviation/logistics, construction, oil infrastructure) recover at roughly the same pace. Above it, a 3-month assessment delay in physical sectors — damage assessment, insurance claims, procurement, certification — creates a binding constraint that extends aggregate recovery regardless of sentiment, brand, or capital availability.
+The phase transition from V-shaped to U-shaped recovery occurs at approximately 12–16 weeks of active conflict. Below that threshold, both confidence-driven sectors (financial services, tourism, real estate) and physical sectors (aviation/logistics, construction, oil infrastructure) recover at roughly the same pace. Above it, per-sector assessment delays in physical sectors — damage assessment, insurance claims, procurement, certification — create a binding constraint that extends aggregate recovery regardless of sentiment, brand, or capital availability. Aviation faces the longest delay (1.6× the base lag) due to airspace certification and insurance repricing requirements.
 
 This means the prevailing debate may be anchored to the wrong variable. Optimistic assessments tend to underestimate recovery timelines. Pessimistic assessments tend to overestimate the permanence of damage. The model suggests duration is the primary determinant of recovery shape.
 
@@ -115,17 +115,27 @@ The simulation engine decomposes UAE GDP into seven sectors, each with its own s
 
 **Confidence-driven sectors** (62% of GDP) recover via brand-linked mean-reversion. They respond to sentiment, are dragged by brand damage, and receive 60% of SWF deployment. Recovery rate is calibrated to post-2009 Dubai (approximately 1.2% monthly mean-reversion from trough).
 
-**Physical sectors** (38% of GDP) recover at an engineering-constrained rate with a 3-month assessment delay post-stabilization. They have hard sequential dependencies (damage assessment → insurance → procurement → construction → certification → operations) and receive 40% of SWF deployment. Recovery rate is calibrated to infrastructure reconstruction timelines (~0.6% monthly).
+**Physical sectors** (38% of GDP) recover at an engineering-constrained rate with per-sector assessment delays post-stabilization (aviation 1.6×, oil 1.2×, construction 0.8× of base lag). They have hard sequential dependencies (damage assessment → insurance → procurement → construction → certification → operations) and receive 40% of SWF deployment. Recovery rate is calibrated to infrastructure reconstruction timelines (~0.6% monthly). Tourism recovery is gated by aviation status — tourists need flights — enforced as an AND-dependency where tourism cannot recover past ~70% of aviation's recovery level.
 
 ### Key Mechanisms
 
 **Two-regime brand decay.** Brand damage accumulates during conflict (fast initial shock, then slower accrual). Post-stabilization, it recovers in two regimes: fast exponential reversion toward a parameterized "structural discount floor" (default 6% — the Israel tech sector analogy, where the brand recovers to ~90–94% quickly), then slow convergence from the floor toward zero at one-third the rate. This captures the "risk premium ≠ structural break" dynamic — you recover to a new equilibrium quickly, then grind upward over years.
 
-**Poisson-triggered network departures.** During conflict, each month generates a Poisson-distributed number of "departure trigger events" (school closures, insurance cancellations, infrastructure hits, employer relocations). Each trigger causes a stochastic 2–5% step-change in departures from the remaining population. This produces fat-tailed P10 paths that smooth models miss — some simulation runs get unlucky with clustered triggers and cross the network threshold, producing qualitatively different recovery trajectories.
+**Poisson-triggered network departures.** During conflict, each month generates a Poisson-distributed number of "departure trigger events" (school closures, insurance cancellations, infrastructure hits, employer relocations). Each trigger causes a stochastic 2–5% step-change in departures from the remaining population. Departures have sector-specific stickiness: financial services departures (stickiness 0.65) are largely irreversible within the model horizon — a fund that relocates its legal domicile to Singapore doesn't reverse that in 12 months. Tourism departures (stickiness 0.15) are highly reversible. The weighted-average stickiness across the departure profile slows the global return rate, so finance-heavy departure waves produce structurally slower recovery than tourism-heavy ones. This produces fat-tailed P10 paths that smooth models miss.
 
-**Oil windfall netting.** Excess oil revenue (price premium × export volume factor × (1 − defense cost share)) accumulates as deployable capital during the conflict. The defense cost share is parameterized and UAE-specific (default 20%, vs. ~40% for Saudi Arabia as a more direct combatant). This accumulated windfall funds SWF offensive deployment post-stabilization.
+**Oil windfall netting.** Excess oil revenue (price premium × export volume factor × (1 − defense cost share)) accumulates as deployable capital during the conflict. The export volume factor is parameterized: 55% when the Fujairah pipeline is operational, ~5% when destroyed (minimal overland capacity). The defense cost share is parameterized and UAE-specific (default 20%, vs. ~40% for Saudi Arabia as a more direct combatant). This accumulated windfall funds SWF offensive deployment post-stabilization.
 
 **Split SWF deployment.** After a parameterized lag (default 6 months post-stabilization), sovereign wealth fund investment ramps following a logistic curve, converting accumulated windfall into incremental GDP boost. Deployment is distributed 60/40 to confidence/physical sectors, capped at historical maximums (~6% of GDP annually, calibrated to Mubadala's peak deployment rates of ~$30–40B/year on ~$500B GDP).
+
+**Aviation AND-gate on tourism.** Tourism recovery is gated by aviation status — tourists need flights. Tourism cannot recover past approximately 70% of aviation's recovery level. This enforces an AND-dependency: tourism needs brand recovery AND aviation recovery AND physical infrastructure. When aviation is stuck in its extended assessment delay (1.6× base lag), tourism stays suppressed even if confidence indicators improve. This delays the confidence-sector snapback in severe scenarios and pushes the V-to-U threshold earlier.
+
+**Global demand drag.** Sustained oil above $100 during conflict creates a cumulative drag on confidence-sector recovery rates, capped at 15%. At $140 oil for 26 weeks, this produces roughly 7–10% drag on tourism, finance, real estate, and other services. The drag persists into recovery months — the world recession doesn't end the day the conflict does. This is a crude linear approximation of what would likely be a non-linear demand destruction cascade.
+
+**Per-sector assessment delays.** Physical sectors have differentiated assessment delays scaled by sector type: aviation 1.6× base lag (airspace certification, insurance repricing), oil 1.2× (infrastructure inspection, pipeline integrity testing), construction 0.8× (faster contractor mobilization). Both the delay and the ramp are scaled, so aviation is both later to start and slower to complete than construction.
+
+**Departure stickiness.** Network departures have sector-specific reversibility. Financial services departures (stickiness 0.65) are largely irreversible — a fund that relocates its legal domicile doesn't reverse in 12 months. Tourism departures (stickiness 0.15) reverse quickly when brand recovers. The weighted-average stickiness across the GDP-weighted sector profile slows the global return rate, so finance-heavy departure waves produce structurally slower ecosystem recovery.
+
+**Fujairah pipeline toggle.** The export volume factor (default 55% via Habshan–Fujairah bypass) can be toggled to ~5% (minimal overland capacity). When destroyed, windfall accumulation drops by ~91%, collapsing the SWF deployment mechanism that powers recovery acceleration. This confirms Fujairah as a flat-critical node — equally catastrophic regardless of conflict duration.
 
 **Monte Carlo sampling.** All key parameters are sampled from Gaussian distributions centered on slider values: conflict duration (±20%), brand half-life (±25%), departure peak (±20%), absorption cap (±15%), oil price (±$15), SWF lag (±2 months), defense cost share (±15%), and both recovery rates. 1,500 paths per scenario produce percentile distributions (P5 through P95).
 
@@ -139,7 +149,7 @@ The findings are falsifiable. Here are the conditions under which each would be 
 
 **Duration threshold shifts higher** (V-to-U at >16 weeks) if: the UAE government pre-positions reconstruction contracts during the conflict (compressing the assessment delay), or if French/allied military support proves effective enough to prevent significant physical infrastructure damage despite extended conflict.
 
-**The windfall paradox breaks** if: defense and emergency expenditure escalates substantially beyond the modeled 20% share, or if oil export volumes through Fujairah are disrupted (the model assumes 55% of normal export capacity via bypass infrastructure).
+**The windfall paradox breaks** if: defense and emergency expenditure escalates substantially beyond the modeled 20% share, or if oil export volumes through Fujairah are disrupted. The latter is now directly testable: toggle the Fujairah pipeline off in the Explore section and observe the windfall mechanism collapse. The model confirms that Fujairah destruction changes the base case from V-shaped to U-shaped independent of conflict duration.
 
 **The threshold risk materializes** if: firm registration data at DIFC and ADGM shows sustained net departures exceeding historical norms by Q3 2026, or if broader population and workforce indicators suggest departures exceeding the absorption cap.
 
@@ -166,9 +176,9 @@ These indicators map directly to model parameters and tell you which scenario is
 
 These are not mild omissions. They are specific scenarios in which the model's core mechanics would produce misleading output. They apply primarily to the severe scenario (26 weeks) and should inform the degree of confidence placed in each scenario's results.
 
-**Fujairah as single point of failure.** The entire windfall mechanism — Finding 3, the recovery accelerant, the SWF deployment engine — depends on the Habshan–Fujairah pipeline and terminal operating at roughly 55% of normal export capacity. This is treated as a constant. In reality, Fujairah is the UAE's most exposed emirate to Gulf of Oman–facing threats, and the Fujairah Oil Industry Zone has already been struck. Structural damage to this infrastructure would collapse the export volume factor toward zero, breaking the windfall paradox entirely. The model would continue to show windfall accumulation that isn't happening. In a severe scenario where Fujairah is degraded, the SWF deployment boost that powers months 12–30 of the recovery would be substantially weaker or absent, and the recovery curve would flatten materially beyond what the current severe scenario shows. This is the single highest-impact unmodeled risk in the simulation.
+**Fujairah as flat-critical node.** The entire windfall mechanism — Finding 3, the recovery accelerant, the SWF deployment engine — depends on the Habshan–Fujairah pipeline and terminal operating at roughly 55% of normal export capacity. As of v3.0, this is modeled as a binary toggle: pipeline operational (55% export capacity) or destroyed (~5% minimal overland). When toggled off, the windfall mechanism collapses — the export volume factor drops by ~91%, SWF deployment is severely constrained, and the recovery curve flattens materially regardless of conflict duration. This makes Fujairah a "flat-critical" node: equally catastrophic whether destroyed in week 1 or week 26, because no amount of time creates an alternative export route at comparable capacity. The toggle is available in the Explore section of the interactive model.
 
-**Global macro feedback.** The model treats the UAE recovery as an internally driven process. It does not account for what happens to the rest of the world during a 26-week conflict with oil at $140/bbl and the Strait of Hormuz effectively closed. In that scenario, it is highly probable that the global economy enters a severe recession. Demand destruction on that scale would depress the UAE's post-conflict tourism, real estate, financial services, and logistics sectors — precisely the confidence-driven sectors the model shows recovering first. The model's P50 recovery curve in the severe scenario assumes a world that is ready to resume doing business with Dubai when the conflict ends. A world in recession is not. This omission means the severe scenario's recovery phase is likely too optimistic: the trough may be accurately modeled, but the speed of the climb out is overstated because it doesn't account for depressed external demand.
+**Global macro feedback.** As of v3.0, the model includes a crude linear demand drag on confidence sectors: sustained oil above $100 during conflict creates a cumulative drag on confidence-sector recovery rates, capped at 15%. This captures the directional effect — the world that produces $140 oil for six months is not the world where Dubai tourism snaps back on an internal confidence curve. However, the linear approximation likely underestimates non-linear recession dynamics. A 26-week conflict at $140 oil probably triggers cascading demand destruction, credit tightening, and trade contraction that the crude term does not capture. The model's severe-scenario recovery phase is more realistic than previous versions but still likely too optimistic about the speed of the climb out.
 
 **Non-linear panic dynamics.** The Poisson trigger model captures step-change departures during conflict. It does not capture contagion — the phenomenon where departures accelerate departures, where social media amplifies fear beyond what objective conditions warrant, and where a specific threshold of visible exodus (families at the airport, moving trucks, school withdrawals) triggers a self-reinforcing cascade that outruns the Poisson rate. The network threshold at ~25% is a useful theoretical boundary, but the model assumes the approach to that threshold is stochastic and independent across months. In reality, the approach may be autocorrelated — a bad month makes the next month worse through social contagion. This means the P10 paths in the severe scenario may still understate the true tail risk. The model's fat tails are fatter than a smooth model's, but they may not be fat enough to capture irrational, contagious panic during an active kinetic war.
 
@@ -191,7 +201,7 @@ Several of these omissions bias the model toward conservatism on the recovery up
 
 *Abu Dhabi* is the source of sovereign capital (ADIA, Mubadala, ADQ — approximately $1.5 trillion in SWF assets) and oil revenue (ADNOC). The model's SWF deployment mechanism is an Abu Dhabi capability. The channel through which Abu Dhabi capital translates into broader UAE economic recovery — which has its own institutional logic, cross-emirate fiscal dynamics, and global mandate constraints — is assumed rather than modeled. Abu Dhabi's own economy is more oil-weighted (~50% of emirate GDP) and more government-driven, with lower sensitivity to the confidence and departure variables that dominate the model's recovery dynamics.
 
-*Fujairah* is a strategic dependency the model makes implicit. The 55% export volume factor in the windfall calculation relies on the Habshan–Fujairah pipeline and Fujairah's terminal operating normally. Fujairah is the UAE's most exposed emirate to Gulf of Oman–facing threats. Damage to this infrastructure would substantially reduce the windfall accumulation that powers the recovery acceleration. A future version should treat Fujairah pipeline status as a binary risk variable rather than a constant.
+*Fujairah* is now modeled as a binary infrastructure dependency. The pipeline toggle in the Explore section allows users to test the impact of Fujairah destruction on all three scenarios. When toggled off, the export volume factor drops from 55% to ~5%, collapsing the windfall mechanism that funds recovery acceleration. This confirms Fujairah as the economy's irreducible backbone — the single piece of physical infrastructure whose status determines the recovery shape more than any other variable.
 
 *Intra-UAE redistribution* is an unmodeled absorption option. Firms and individuals departing Dubai may relocate within the UAE (Ras Al Khaimah, Abu Dhabi, Ajman free zones) rather than to international competitors. These moves preserve the UAE regulatory and tax framework and do not constitute network loss in the same sense as departures to Singapore or London. This suggests the model's absorption cap — the share of departures permanently lost to competitor jurisdictions — may overstate actual permanent loss, as some "departures" from Dubai are redistributions within the UAE system.
 
@@ -207,9 +217,14 @@ These distinctions do not invalidate the model's core findings but suggest that 
 
 ```
 ├── README.md                           # This document
+├── index.html                          # Vite entry point
+├── package.json                        # Vite + React + Recharts (v3.0.0)
+├── vite.config.js                      # Vite config
+├── src/
+│   └── main.jsx                        # React mount point
 ├── model/
 │   ├── uae_recovery_v3_interactive.jsx # Full interactive simulation (React)
-│   └── uae_scenario_comparison.jsx     # Three-scenario static comparison (React)
+│   └── uae_scenario_comparison.jsx     # Scenario engine + presentation (React)
 ├── docs/
 │   ├── variable_framework.html         # Conceptual framework (2×2 quadrant)
 │   └── methodology.md                  # Extended methodology notes
@@ -217,9 +232,7 @@ These distinctions do not invalidate the model's core findings but suggest that 
     └── default_parameters.json         # Default parameter configurations
 ```
 
-**The interactive model** (`model/uae_recovery_v3_interactive.jsx`) is the primary research instrument. Every parameter is exposed as a slider. The reader can reproduce all findings in this document, test alternative assumptions, and observe how the recovery curve, sector sequence, and probability distributions respond to parameter changes.
-
-**The scenario comparison** (`model/uae_scenario_comparison.jsx`) produces the three-scenario static output with sector-level charts, recovery sequences, and the four-finding narrative. This is the publishable artifact.
+**The scenario comparison** (`model/uae_scenario_comparison.jsx`) is the primary artifact — the scenario engine, presentation layer, and interactive controls (duration slider, Fujairah toggle, tension detector) in a single file. Deployed to Vercel via `npm run build`.
 
 **The variable framework** (`docs/variable_framework.html`) maps recovery variables to a 2×2 grid (UAE-controlled vs. external, temporary vs. structural) and provides the analytical justification for why the model tests these specific parameters.
 
@@ -229,7 +242,7 @@ These distinctions do not invalidate the model's core findings but suggest that 
 
 **If you want the bottom line:** Read the [Three Scenarios](#three-scenarios) section and the [Four Findings](#four-findings).
 
-**If you want to stress-test the assumptions:** Open the interactive model. Move the conflict duration slider from 8 to 26 weeks and watch the V flatten into a U. Set brand floor to 0% and absorption cap to 15% simultaneously — that's the pure bull case. If recovery still takes 18+ months at 26-week duration, the finding is robust. Push defense cost share to 50% and watch the windfall paradox break. These are the tests that matter.
+**If you want to stress-test the assumptions:** Open the interactive model. Move the conflict duration slider from 8 to 26 weeks and watch the V flatten into a U. Toggle the Fujairah pipeline off and watch the windfall paradox break at any duration — that's the flat-critical node test. Set brand floor to 0% and absorption cap to 15% simultaneously — that's the pure bull case. If recovery still takes 18+ months at 26-week duration, the finding is robust. Push defense cost share to 50% and watch the windfall paradox break. These are the tests that matter.
 
 **If you want to track which scenario is materializing:** Use the [Monitoring Framework](#monitoring-framework). Check the indicators monthly. When three or more indicators align with a scenario column, that's the path you're on.
 

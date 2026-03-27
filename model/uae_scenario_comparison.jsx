@@ -7,14 +7,15 @@ function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
 function poisson(l){let L=Math.exp(-l),k=0,p=1;do{k++;p*=Math.random()}while(p>L);return k-1}
 
 // v2 CHANGE 3: sector-specific betas
+// v3: added assessDelayMult (per-sector assessment delay scaling) and departureStickiness (0=fully reversible, 1=fully irreversible)
 const SECTORS={
-  tourism:   {w:.11,shockMu:.72,shockSd:.08,type:"confidence",label:"Tourism",           color:"#ee5396",brandBeta:1.4, networkBeta:1.0, sovereignBeta:0.8},
-  aviation:  {w:.08,shockMu:.65,shockSd:.07,type:"physical",  label:"Aviation & Logistics",color:"#ff832b",brandBeta:0.5, networkBeta:0.6, sovereignBeta:1.2},
-  finance:   {w:.12,shockMu:.22,shockSd:.05,type:"confidence",label:"Financial Services",  color:"#33b1ff",brandBeta:1.0, networkBeta:1.3, sovereignBeta:1.0},
-  realEst:   {w:.07,shockMu:.42,shockSd:.08,type:"confidence",label:"Real Estate",         color:"#be95ff",brandBeta:1.2, networkBeta:1.1, sovereignBeta:0.9},
-  construct: {w:.05,shockMu:.32,shockSd:.06,type:"physical",  label:"Construction",        color:"#d2a106",brandBeta:0.3, networkBeta:0.4, sovereignBeta:1.4},
-  oil:       {w:.25,shockMu:.30,shockSd:.05,type:"physical",  label:"Oil & Gas",           color:"#42be65",brandBeta:0.2, networkBeta:0.3, sovereignBeta:1.3},
-  other:     {w:.32,shockMu:.12,shockSd:.04,type:"confidence",label:"Other Services",      color:"#8d8d8d",brandBeta:0.7, networkBeta:0.8, sovereignBeta:0.7},
+  tourism:   {w:.11,shockMu:.72,shockSd:.08,type:"confidence",label:"Tourism",           color:"#ee5396",brandBeta:1.4, networkBeta:1.0, sovereignBeta:0.8, assessDelayMult:1.0, departureStickiness:0.15},
+  aviation:  {w:.08,shockMu:.65,shockSd:.07,type:"physical",  label:"Aviation & Logistics",color:"#ff832b",brandBeta:0.5, networkBeta:0.6, sovereignBeta:1.2, assessDelayMult:1.6, departureStickiness:0.40},
+  finance:   {w:.12,shockMu:.22,shockSd:.05,type:"confidence",label:"Financial Services",  color:"#33b1ff",brandBeta:1.0, networkBeta:1.3, sovereignBeta:1.0, assessDelayMult:1.0, departureStickiness:0.65},
+  realEst:   {w:.07,shockMu:.42,shockSd:.08,type:"confidence",label:"Real Estate",         color:"#be95ff",brandBeta:1.2, networkBeta:1.1, sovereignBeta:0.9, assessDelayMult:1.0, departureStickiness:0.45},
+  construct: {w:.05,shockMu:.32,shockSd:.06,type:"physical",  label:"Construction",        color:"#d2a106",brandBeta:0.3, networkBeta:0.4, sovereignBeta:1.4, assessDelayMult:0.8, departureStickiness:0.20},
+  oil:       {w:.25,shockMu:.30,shockSd:.05,type:"physical",  label:"Oil & Gas",           color:"#42be65",brandBeta:0.2, networkBeta:0.3, sovereignBeta:1.3, assessDelayMult:1.2, departureStickiness:0.10},
+  other:     {w:.32,shockMu:.12,shockSd:.04,type:"confidence",label:"Other Services",      color:"#8d8d8d",brandBeta:0.7, networkBeta:0.8, sovereignBeta:0.7, assessDelayMult:1.0, departureStickiness:0.30},
 };
 
 function runPath(P){
@@ -25,7 +26,7 @@ function runPath(P){
     swfMultiplier:swm, confidenceRecoveryRate:crr, physicalRecoveryRate:prr,
     // v2 CHANGE 2: parameterized assessment lag
     physicalAssessmentLagMonths:palM, physicalAssessmentRampMonths:parM,
-    preWarOilPrice:pwo
+    preWarOilPrice:pwo, exportVolumeFactor:evf
   } = P;
 
   const mo=48, cm=cdw/4.33;
@@ -90,9 +91,11 @@ function runPath(P){
       nl = clamp(nl + .005*(1-nl), 0, pk);
     } else {
       pl = clamp(nl * ab, 0, nl);
-      // v2 CHANGE 1: graded return rate based on tipping severity
+      // v3: weighted-average stickiness slows global return rate
+      // Stickier the departed population (finance-heavy), slower the return
+      const avgStickiness = Object.values(SECTORS).reduce((s,sec) => s + sec.departureStickiness * sec.w, 0);
       const baseReturn = 0.06;
-      const returnRate = baseReturn * (1 - tippingSeverity * 0.5); // at full severity, return rate halved
+      const returnRate = baseReturn * (1 - tippingSeverity * 0.5) * (1 - avgStickiness * 0.4); // stickiness reduces return rate by up to 40%
       const temp = nl - pl;
       nl = clamp(nl - temp * returnRate, pl, 1);
     }
@@ -105,7 +108,7 @@ function runPath(P){
     if(tippingSeverity > peakTipSev) peakTipSev = tippingSeverity;
 
     // ── Windfall ──
-    if(ic) cw += (op-pwo)/pwo * .25 * .55 * (1-dc);
+    if(ic) cw += (op-pwo)/pwo * .25 * evf * (1-dc);
 
     // ── SWF ──
     let sb = 0;
@@ -118,6 +121,10 @@ function runPath(P){
 
     // ── Sectors ──
     let tg = 0;
+    // v3: global demand feedback — sustained high oil depresses world GDP, dragging confidence recovery
+    const oilMonths = Math.min(m, ac);
+    const globalDrag = oilMonths > 3 ? clamp((op - 100) / 100 * 0.003 * oilMonths, 0, 0.15) : 0;
+
     for(const[k,sec] of Object.entries(SECTORS)){
       const st = ss[k];
       if(ic){
@@ -130,19 +137,31 @@ function runPath(P){
         const rr = sec.type==="confidence" ? cR : pR;
         // v2 CHANGE 3: sector-specific betas
         const bD = bd * 0.008 * sec.brandBeta;
-        const nD = nl * 0.005 * sec.networkBeta * (1 + tippingSeverity * 0.6);
+        // v3: sector-specific departure stickiness — sticky departures drag harder and longer
+        const effectiveNl = nl * (1 + sec.departureStickiness * 0.5); // stickier sectors feel departures more
+        const nD = effectiveNl * 0.005 * sec.networkBeta * (1 + tippingSeverity * 0.6);
         const def = (100 - st.idx) / 100;
 
         let d;
         if(sec.type==="physical"){
-          // v2 CHANGE 2: parameterized assessment lag with ramp
+          // v3: per-sector assessment delay (assessDelayMult scales the global lag)
+          const sectorLag = aLag * sec.assessDelayMult;
+          const sectorRamp = aRamp * sec.assessDelayMult;
           let assessFactor;
-          if(ms < aLag) assessFactor = 0.2;
-          else if(ms < aLag + aRamp) assessFactor = 0.2 + 0.8 * ((ms - aLag) / aRamp);
+          if(ms < sectorLag) assessFactor = 0.2;
+          else if(ms < sectorLag + sectorRamp) assessFactor = 0.2 + 0.8 * ((ms - sectorLag) / sectorRamp);
           else assessFactor = 1.0;
           d = def * rr * 12 * assessFactor - bD - nD;
         } else {
           d = def * rr * 12 - bD - nD;
+          // v3: global demand drag on confidence sectors
+          d = d * (1 - globalDrag);
+        }
+
+        // v3: aviation AND-gate — tourism can't recover faster than aviation allows
+        if(k==="tourism"){
+          const aviationGate = ss.aviation.idx / 100;
+          d = d * Math.min(1, aviationGate / 0.7); // tourism capped at ~70% of aviation recovery level
         }
 
         // SWF boost with sector-specific sovereign beta
@@ -163,7 +182,7 @@ function runPath(P){
     path.push({
       month:m, gdp:tg, phase:ph,
       brandDamage:bd*100, networkLoss:nl*100, windfall:cw*100,
-      tippingSeverity, peakTipSev,
+      tippingSeverity, peakTipSev, globalDrag:globalDrag*100,
       peakBrand, peakNetwork, swfStartMonth,
       ...Object.fromEntries(Object.keys(SECTORS).map(k=>[k,ss[k].idx]))
     });
@@ -238,7 +257,7 @@ const BP={
   defenseCostShare:.20, swfMultiplier:.10,
   confidenceRecoveryRate:.012, physicalRecoveryRate:.006,
   physicalAssessmentLagMonths:3, physicalAssessmentRampMonths:2,
-  preWarOilPrice:70
+  preWarOilPrice:70, exportVolumeFactor:.55
 };
 const N_PATHS = 1500;
 const SLIDER_PATHS = 200;
@@ -539,9 +558,16 @@ function SectorRecoveryBars({sRec}){
 
 // ── Duration Slider ───────────────────────────────────────
 function DurationSlider({weeks, onChange, mobile}){
+  const [showCustom, setShowCustom] = useState(!mobile);
+  // Natural language context
+  const context = weeks <= 8 ? "Short conflict · V-shaped recovery likely"
+    : weeks <= 12 ? "Approaching the transition zone"
+    : weeks <= 16 ? "Transition zone · V-to-U shift"
+    : weeks <= 22 ? "Extended conflict · U-shaped recovery"
+    : "Prolonged conflict · Structural impairment risk";
   return(
     <div style={{marginBottom:32}}>
-      <div style={{display:"flex",alignItems:"center",gap:mobile?12:20,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:mobile?12:20,marginBottom:12,flexWrap:"wrap"}}>
         {PRESETS.map(p=>{
           const ac=ACCENT[p.id]; const active=weeks===p.wk;
           return(
@@ -564,7 +590,19 @@ function DurationSlider({weeks, onChange, mobile}){
           {weeks} weeks
         </span>
       </div>
-      <div style={{position:"relative",padding:"8px 0"}}>
+      {/* Natural language context */}
+      <div style={{fontFamily:F.n,fontSize:11,color:accentForWeeks(weeks),fontWeight:300,marginBottom:12,opacity:0.8}}>{context}</div>
+
+      {/* Mobile: toggle to show custom slider */}
+      {mobile && !showCustom && (
+        <button onClick={()=>setShowCustom(true)} style={{
+          background:"transparent",border:"1px solid "+T.rule,borderRadius:6,
+          padding:"8px 16px",fontFamily:F.n,fontSize:11,color:T.t4,cursor:"pointer",
+          fontWeight:300,marginBottom:12,
+        }}>Custom duration ›</button>
+      )}
+
+      {showCustom && <div style={{position:"relative",padding:"8px 0"}}>
         <style>{`
           input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
@@ -590,7 +628,7 @@ function DurationSlider({weeks, onChange, mobile}){
             return <div key={p.id} style={{position:"absolute",left:pct+"%",transform:"translateX(-50%)",fontFamily:F.n,fontSize:9,color:T.t4,fontWeight:300}}>{p.wk}wk</div>;
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -599,19 +637,23 @@ function DurationSlider({weeks, onChange, mobile}){
 export default function UAEStressTestV2(){
   const mobile=useIsMobile();
   const [activeWeeks, setActiveWeeks] = useState(8);
+  const [fujairahOn, setFujairahOn] = useState(true);
   const deepDiveRef = useRef(null);
 
-  // Progressive loading
+  const evf = fujairahOn ? 0.55 : 0.05; // 55% bypass capacity vs ~5% minimal overland
+
+  // Progressive loading — re-runs when Fujairah toggles
   const [results, setResults] = useState(null);
   const [simReady, setSimReady] = useState(false);
   useEffect(() => {
+    setSimReady(false);
     const id = requestAnimationFrame(() => {
-      const r = SCEN.map(sc => ({...sc, result: runSim(sc.params, N_PATHS)}));
+      const r = SCEN.map(sc => ({...sc, result: runSim({...sc.params, exportVolumeFactor:evf}, N_PATHS)}));
       setResults(r);
       setSimReady(true);
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [fujairahOn]);
   const baseM = results ? results[0].result.m : null;
 
   const selectAndScroll = useCallback((wk) => {
@@ -622,8 +664,8 @@ export default function UAEStressTestV2(){
   // Slider result
   const sliderResult = useMemo(()=>{
     const p = paramsForWeeks(activeWeeks);
-    return runSim(p, SLIDER_PATHS);
-  },[activeWeeks]);
+    return runSim({...p, exportVolumeFactor:evf}, SLIDER_PATHS);
+  },[activeWeeks, fujairahOn]);
 
   const isPreset = PRESETS.find(p=>p.wk===activeWeeks);
   const activeResult = (isPreset && results) ? results.find(r=>r.id===isPreset.id).result : sliderResult;
@@ -693,16 +735,16 @@ export default function UAEStressTestV2(){
         <div style={{marginTop:8,padding:"20px 24px",background:T.surface,borderRadius:8,border:"1px solid "+T.rule,maxWidth:640}}>
           <p style={{fontFamily:F.n,fontSize:11.5,lineHeight:1.75,color:T.t3,margin:0,fontWeight:300}}>
             <span style={{fontWeight:500,color:T.t2}}>The base case is bullish on UAE recovery.</span>{" "}
-            It assumes conflict containment, an intact Fujairah export corridor, and continued global demand at current levels.
-            Two risks the model does not capture:{" "}
-            <span style={{color:T.warn,fontWeight:400}}>global demand feedback</span> — a 26-week conflict at $140 oil likely triggers a world recession that depresses the external demand the UAE recovers into; and{" "}
+            It assumes conflict containment, an intact Fujairah export corridor (now testable — toggle it off in the Explore section), and continued global demand at current levels.
+            Two risks not fully captured:{" "}
+            <span style={{color:T.warn,fontWeight:400}}>global demand feedback</span> — modeled as a linear drag, but a 26-week conflict at $140 oil likely triggers non-linear recession dynamics the crude term underestimates; and{" "}
             <span style={{color:T.orange,fontWeight:400}}>reconstruction bottlenecks</span> — labour shortages, material inflation, and permitting backlogs that would slow physical-sector recovery below the model's assessment-delay assumption.
             If either obtains, the severe scenario understates downside risk.
           </p>
         </div>
 
         <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginTop:20,letterSpacing:"0.06em",fontWeight:400}}>
-          Not a point forecast · {N_PATHS.toLocaleString()} Monte Carlo paths × 3 scenarios × 48 months
+          Not a point forecast · {N_PATHS.toLocaleString()} Monte Carlo paths × 3 scenarios × 48 months · Fujairah pipeline toggle
         </div>
       </header>
 
@@ -839,6 +881,33 @@ export default function UAEStressTestV2(){
         <div style={{background:T.surface,borderRadius:10,border:"1px solid "+T.rule,overflow:"hidden",padding:mobile?"24px 16px":"32px 36px"}}>
           <DurationSlider weeks={activeWeeks} onChange={setActiveWeeks} mobile={mobile}/>
 
+          {/* Fujairah pipeline toggle */}
+          <div style={{display:"flex",alignItems:mobile?"flex-start":"center",gap:16,marginBottom:24,padding:"16px 20px",background:fujairahOn?T.surfaceRaised:"rgba(250,77,86,0.08)",borderRadius:8,border:"1px solid "+(fujairahOn?T.rule:T.warn+"40"),flexDirection:mobile?"column":"row"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+              <button onClick={()=>setFujairahOn(!fujairahOn)} style={{
+                width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",
+                background:fujairahOn?T.green:T.warn,
+                position:"relative",transition:"background 0.2s",flexShrink:0,
+              }}>
+                <div style={{
+                  width:18,height:18,borderRadius:"50%",background:"#fff",
+                  position:"absolute",top:3,
+                  left:fujairahOn?23:3,
+                  transition:"left 0.2s",
+                  boxShadow:"0 1px 4px rgba(0,0,0,.3)",
+                }}/>
+              </button>
+              <span style={{fontFamily:F.n,fontSize:12,fontWeight:500,color:fujairahOn?T.t2:T.warn}}>
+                Fujairah pipeline: {fujairahOn?"Operational":"Destroyed"}
+              </span>
+            </div>
+            <span style={{fontFamily:F.n,fontSize:11,color:T.t4,fontWeight:300,lineHeight:1.5}}>
+              {fujairahOn
+                ? "Habshan–Fujairah pipeline at 55% export capacity. Windfall accumulates normally."
+                : "Pipeline destroyed. Export volume drops to ~5% (minimal overland). Windfall mechanism breaks — SWF deployment severely constrained."}
+            </span>
+          </div>
+
           <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(5, 1fr)",gap:mobile?20:0,marginBottom:36,paddingBottom:28,borderBottom:"1px solid "+T.rule}}>
             <Stat label="Peak drawdown" value={"−"+am.draw50+"%"} color={T.warn}/>
             <Stat label="Full recovery" value={am.r50===">48"?"> 4 years":am.r50+" months"} color={activeAccent}
@@ -857,18 +926,18 @@ export default function UAEStressTestV2(){
               <ScenarioGDPChart data={activeResult.ts} accent={activeAccent} ce={ce} h={mobile?240:280}/>
             </div>
             <div>
-              <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,marginBottom:4,fontWeight:400}}>Sector Divergence</div>
-              <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginBottom:12,fontWeight:300}}>Confidence sectors vs physical sectors · positive = confidence recovering faster</div>
-              <DivergenceChart data={activeResult.ts} ce={ce} h={mobile?200:248}/>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
+                <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,fontWeight:400}}>Sector Recovery to 95%</div>
+                <div style={{fontFamily:F.n,fontSize:10,color:T.t4,fontWeight:300}}>Bar = P25–P75 · Mark = P50</div>
+              </div>
+              <SectorRecoveryBars sRec={activeResult.sRec}/>
             </div>
           </div>
 
           <div style={{marginTop:36,paddingTop:28,borderTop:"1px solid "+T.rule}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:16}}>
-              <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,fontWeight:400}}>Sector Recovery to 95%</div>
-              <div style={{fontFamily:F.n,fontSize:10,color:T.t4,fontWeight:300}}>Bar = P25–P75 · Mark = P50</div>
-            </div>
-            <SectorRecoveryBars sRec={activeResult.sRec}/>
+            <div style={{fontFamily:F.n,fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",color:T.t4,marginBottom:4,fontWeight:400}}>Sector Divergence</div>
+            <div style={{fontFamily:F.n,fontSize:10,color:T.t4,marginBottom:12,fontWeight:300}}>Confidence sectors vs physical sectors · positive = confidence recovering faster</div>
+            <DivergenceChart data={activeResult.ts} ce={ce} h={mobile?180:220}/>
           </div>
         </div>
       </SectionM>
@@ -877,9 +946,45 @@ export default function UAEStressTestV2(){
       <SectionM id="monitor" mobile={mobile}>
         <Kicker>Monitor</Kicker>
         <h3 style={{fontFamily:F.d,fontSize:mobile?24:36,fontWeight:300,color:T.t1,margin:"0 0 12px",letterSpacing:"-0.02em"}}>Which scenario is materializing?</h3>
-        <p style={{fontFamily:F.n,fontSize:13,color:T.t3,fontWeight:300,maxWidth:600,marginBottom:48,lineHeight:1.7}}>
+        <p style={{fontFamily:F.n,fontSize:13,color:T.t3,fontWeight:300,maxWidth:600,marginBottom:32,lineHeight:1.7}}>
           These indicators map to the model's state variables. When three or more align with a scenario column, that's the path you're on.
         </p>
+
+        {/* v3: Cross-sector tension detector */}
+        {(() => {
+          const ts = activeResult.ts;
+          const lastTs = ts[ts.length - 1];
+          const midTs = ts[Math.floor(ts.length / 2)] || lastTs;
+          const confLevel = lastTs?.confMed || 100;
+          const physLevel = lastTs?.physMed || 100;
+          const divergence = Math.abs(confLevel - physLevel);
+          const midDiv = Math.abs((midTs?.confMed||100) - (midTs?.physMed||100));
+          const isWidening = divergence > midDiv + 0.5;
+          const isNarrowing = divergence < midDiv - 0.5;
+          const trajectory = isWidening ? "widening" : isNarrowing ? "narrowing" : "stable";
+          const isTense = divergence > 3;
+          return isTense ? (
+            <div style={{marginBottom:32,padding:"16px 20px",background:"rgba(168,139,250,0.06)",borderRadius:8,border:"1px solid "+T.accent+"40"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+                <span style={{fontFamily:F.n,fontSize:10,fontWeight:500,color:T.accent,textTransform:"uppercase",letterSpacing:"0.1em"}}>Tension Detected</span>
+                <span style={{fontFamily:F.n,fontSize:18,fontWeight:200,color:T.t1}}>{divergence.toFixed(1)} pts</span>
+                <span style={{fontFamily:F.n,fontSize:10,fontWeight:400,
+                  color:trajectory==="widening"?T.warn:trajectory==="narrowing"?T.green:T.t4,
+                  padding:"2px 8px",borderRadius:4,
+                  background:trajectory==="widening"?"rgba(250,77,86,0.1)":trajectory==="narrowing"?"rgba(66,190,101,0.1)":"transparent",
+                }}>{trajectory==="widening"?"↑ Widening":trajectory==="narrowing"?"↓ Narrowing":"→ Stable"}</span>
+              </div>
+              <p style={{fontFamily:F.n,fontSize:11.5,color:T.t3,fontWeight:300,margin:0,lineHeight:1.6}}>
+                Confidence sectors ({confLevel.toFixed(1)}) and physical sectors ({physLevel.toFixed(1)}) are diverging — 
+                the recovery is not following a single scenario path. {confLevel > physLevel 
+                  ? "Sentiment is recovering faster than physical infrastructure. Watch for a plateau when physical constraints bind."
+                  : "Physical reconstruction is outpacing sentiment recovery. Watch for brand damage or departure dynamics constraining the rebound."}
+                {trajectory==="widening"?" The gap is widening — the two-hump pattern is intensifying.":""}
+                {trajectory==="narrowing"?" The gap is narrowing — sectors are converging toward synchronized recovery.":""}
+              </p>
+            </div>
+          ) : null;
+        })()}
 
         <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr 1fr",gap:mobile?32:48}}>
           {[
@@ -919,21 +1024,29 @@ export default function UAEStressTestV2(){
 
         <SplitRow mobile={mobile} left={<>
           <h4 style={{fontFamily:F.n,fontSize:13,fontWeight:500,color:T.t2,margin:"0 0 12px"}}>What the model does</h4>
-          <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300,margin:0}}>
-            Decomposes GDP into seven sectors with sector-specific brand, network, and sovereign betas.
-            Implements two-regime brand decay with soft tipping band.
-            Parameterized physical assessment lag.
-            Poisson-triggered departures with path-level stress co-movement.
-            Oil windfall netted against defense costs.
-            {" "}{N_PATHS.toLocaleString()} Monte Carlo paths per scenario.
-          </p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 24px",fontSize:11.5,lineHeight:1.7,color:T.t3,fontWeight:300}}>
+            {[
+              "7-sector GDP decomposition",
+              "Sector-specific brand, network & sovereign betas",
+              "Two-regime brand decay + soft tipping band",
+              "Per-sector assessment delays",
+              "Aviation AND-gate on tourism",
+              "Global demand drag on confidence sectors",
+              "Poisson-triggered departures + stickiness",
+              "Fujairah pipeline toggle",
+              "Oil windfall netted against defense costs",
+              N_PATHS.toLocaleString()+" Monte Carlo paths per scenario",
+            ].map((m,i)=><div key={i} style={{padding:"3px 0",borderBottom:"1px solid "+T.ruleSoft}}>
+              <span style={{color:T.accent,marginRight:6,fontSize:9}}>›</span>{m}
+            </div>)}
+          </div>
         </>} right={<>
-          <h4 style={{fontFamily:F.n,fontSize:13,fontWeight:500,color:T.t2,margin:"0 0 12px"}}>What it doesn't do</h4>
+          <h4 style={{fontFamily:F.n,fontSize:13,fontWeight:500,color:T.t2,margin:"0 0 12px"}}>Known limitations</h4>
           <p style={{fontSize:12.5,lineHeight:1.8,color:T.t3,fontWeight:300,margin:0}}>
-            The two risks elevated above — <span style={{color:T.warn,fontWeight:400}}>global demand feedback</span> and <span style={{color:T.orange,fontWeight:400}}>reconstruction bottlenecks</span> — are the most consequential omissions.
-            A 26-week conflict at $140 oil likely triggers a world recession that depresses the external demand the UAE recovers into — precisely the confidence-driven sectors the model shows recovering first.
-            Also absent: intra-GCC coordination dynamics, capital market or currency effects, policy innovation that could compress assessment timelines, and potential upside from reduced long-term regional threat premiums.
-            On balance, these omissions bias toward conservatism on the recovery upside, except for the global demand channel, which biases toward optimism in the severe scenario.
+            <span style={{color:T.accent,fontWeight:400}}>Tension gaps</span> — the global demand drag is a crude linear term; a 26-week, $140-oil scenario likely produces non-linear recession dynamics the model underestimates.{" "}
+            <span style={{color:T.orange,fontWeight:400}}>Silence gaps</span> — intra-GCC coordination, capital market and currency dynamics, policy innovation that could compress assessment timelines, and potential upside from reduced long-term regional threat premiums are not represented.{" "}
+            <span style={{color:T.warn,fontWeight:400}}>Reconstruction bottlenecks</span> — labour shortages, material inflation, and permitting backlogs that would slow physical-sector recovery below the assessment-delay assumption remain unmodeled.
+            On balance, omissions bias toward conservatism on the recovery upside, except for the global demand channel in the severe scenario.
           </p>
         </>}/>
 
