@@ -330,7 +330,7 @@ function SectionM({children, id, noBorder, mobile, style}){
 
 // Section kicker label
 function Kicker({children, color}){
-  return <div style={{fontFamily:F.n,fontSize:11,letterSpacing:"0.14em",textTransform:"uppercase",color:color||T.accent,fontWeight:500,marginBottom:16}}>{children}</div>;
+  return <div style={{fontFamily:F.n,fontSize:11,letterSpacing:"0.14em",textTransform:"uppercase",color:color||T.t4,fontWeight:500,marginBottom:16}}>{children}</div>;
 }
 
 // Callout block (purple left border)
@@ -379,25 +379,9 @@ function SplitRow({left, right, mobile, ratio}){
   );
 }
 
-// Sticky nav with active tracking + mobile
+// Sticky nav with mobile support
 function StickyNav({sections, mobile}){
-  const [activeId, setActiveId] = useState(sections[0].id);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const els = sections.map(s => document.getElementById(s.id)).filter(Boolean);
-    if (!els.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) { setActiveId(entry.target.id); break; }
-        }
-      },
-      { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
-    );
-    els.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
 
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -417,8 +401,7 @@ function StickyNav({sections, mobile}){
             <div key={s.id} onClick={()=>scrollTo(s.id)} style={{
               padding:"10px 20px",cursor:"pointer",
               fontFamily:F.n,fontSize:11,letterSpacing:"0.08em",textTransform:"uppercase",
-              color:activeId===s.id?T.t1:T.t4,fontWeight:activeId===s.id?500:300,
-              transition:"color 0.15s",
+              color:T.t4,fontWeight:300,transition:"color 0.15s",
             }}>{s.label}</div>
           ))}
         </div>
@@ -445,14 +428,11 @@ function StickyNav({sections, mobile}){
         {sections.map(s=>(
           <span key={s.id} onClick={()=>scrollTo(s.id)} style={{
             fontFamily:F.n,fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",
-            color:activeId===s.id?T.t1:T.t4,
-            fontWeight:activeId===s.id?500:400,
-            padding:"14px 20px",cursor:"pointer",
-            whiteSpace:"nowrap",transition:"all 0.2s",
-            borderBottom:activeId===s.id?"1px solid "+T.t3:"1px solid transparent",
+            color:T.t4,fontWeight:400,padding:"14px 20px",cursor:"pointer",
+            whiteSpace:"nowrap",transition:"color 0.2s",
           }}
-          onMouseEnter={e=>{if(activeId!==s.id)e.target.style.color=T.t2}}
-          onMouseLeave={e=>{if(activeId!==s.id)e.target.style.color=T.t4}}
+          onMouseEnter={e=>e.target.style.color=T.t2}
+          onMouseLeave={e=>e.target.style.color=T.t4}
           >{s.label}</span>
         ))}
       </div>
