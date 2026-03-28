@@ -379,9 +379,60 @@ function SplitRow({left, right, mobile, ratio}){
   );
 }
 
-// Sticky nav
+// Sticky nav with active tracking + mobile
 function StickyNav({sections, mobile}){
-  if(mobile) return null;
+  const [activeId, setActiveId] = useState(sections[0].id);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const els = sections.map(s => document.getElementById(s.id)).filter(Boolean);
+    if (!els.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) { setActiveId(entry.target.id); break; }
+        }
+      },
+      { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
+    );
+    els.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setOpen(false);
+  };
+
+  if(mobile) return(
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:200}}>
+      {open && (
+        <div style={{
+          position:"absolute",bottom:52,right:0,
+          background:"rgba(8,9,10,0.95)",backdropFilter:"blur(12px)",
+          border:"1px solid "+T.rule,borderRadius:10,padding:"8px 0",
+          boxShadow:"0 8px 32px rgba(0,0,0,0.6)",minWidth:160,
+        }}>
+          {sections.map(s=>(
+            <div key={s.id} onClick={()=>scrollTo(s.id)} style={{
+              padding:"10px 20px",cursor:"pointer",
+              fontFamily:F.n,fontSize:11,letterSpacing:"0.08em",textTransform:"uppercase",
+              color:activeId===s.id?T.t1:T.t4,fontWeight:activeId===s.id?500:300,
+              transition:"color 0.15s",
+            }}>{s.label}</div>
+          ))}
+        </div>
+      )}
+      <button onClick={()=>setOpen(!open)} style={{
+        width:44,height:44,borderRadius:"50%",border:"1px solid "+T.rule,
+        background:"rgba(8,9,10,0.92)",backdropFilter:"blur(12px)",
+        color:T.t2,fontSize:18,cursor:"pointer",
+        boxShadow:"0 4px 16px rgba(0,0,0,0.5)",
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>{open?"✕":"☰"}</button>
+    </div>
+  );
+
   return(
     <nav style={{
       position:"sticky",top:0,zIndex:100,
@@ -392,14 +443,17 @@ function StickyNav({sections, mobile}){
     }}>
       <div style={{maxWidth:1200,margin:"0 auto",display:"flex",gap:0,overflow:"auto"}}>
         {sections.map(s=>(
-          <a key={s.id} href={"#"+s.id} style={{
+          <span key={s.id} onClick={()=>scrollTo(s.id)} style={{
             fontFamily:F.n,fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",
-            color:T.t4,fontWeight:400,padding:"14px 20px",textDecoration:"none",
-            whiteSpace:"nowrap",transition:"color 0.2s",
+            color:activeId===s.id?T.t1:T.t4,
+            fontWeight:activeId===s.id?500:400,
+            padding:"14px 20px",cursor:"pointer",
+            whiteSpace:"nowrap",transition:"all 0.2s",
+            borderBottom:activeId===s.id?"1px solid "+T.t3:"1px solid transparent",
           }}
-          onMouseEnter={e=>e.target.style.color=T.t2}
-          onMouseLeave={e=>e.target.style.color=T.t4}
-          >{s.label}</a>
+          onMouseEnter={e=>{if(activeId!==s.id)e.target.style.color=T.t2}}
+          onMouseLeave={e=>{if(activeId!==s.id)e.target.style.color=T.t4}}
+          >{s.label}</span>
         ))}
       </div>
     </nav>
@@ -557,7 +611,7 @@ function SectorRecoveryBars({sRec}){
 }
 
 // ── Duration Slider ───────────────────────────────────────
-function DurationSlider({weeks, onChange, mobile}){
+function DurationSlider({weeks, onChange, onPreset, mobile}){
   const [showCustom, setShowCustom] = useState(!mobile);
   // Natural language context
   const context = weeks <= 8 ? "Short conflict · V-shaped recovery likely"
@@ -565,13 +619,26 @@ function DurationSlider({weeks, onChange, mobile}){
     : weeks <= 16 ? "Transition zone · V-to-U shift"
     : weeks <= 22 ? "Extended conflict · U-shaped recovery"
     : "Prolonged conflict · Structural impairment risk";
+
+  // Regime ceremony — pulse on context change
+  const [contextPulse, setContextPulse] = useState(false);
+  const prevContextRef = useRef(context);
+  useEffect(() => {
+    if (context !== prevContextRef.current) {
+      prevContextRef.current = context;
+      setContextPulse(true);
+      const t = setTimeout(() => setContextPulse(false), 400);
+      return () => clearTimeout(t);
+    }
+  }, [context]);
+
   return(
     <div style={{marginBottom:32}}>
       <div style={{display:"flex",alignItems:"center",gap:mobile?12:20,marginBottom:12,flexWrap:"wrap"}}>
         {PRESETS.map(p=>{
           const ac=ACCENT[p.id]; const active=weeks===p.wk;
           return(
-            <button key={p.id} onClick={()=>onChange(p.wk)} style={{
+            <button key={p.id} onClick={()=>(onPreset||onChange)(p.wk)} style={{
               background:active?ac+"18":"transparent",
               border:active?`1px solid ${ac}`:`1px solid ${T.rule}`,
               borderRadius:6,cursor:"pointer",
@@ -590,8 +657,11 @@ function DurationSlider({weeks, onChange, mobile}){
           {weeks} weeks
         </span>
       </div>
-      {/* Natural language context */}
-      <div style={{fontFamily:F.n,fontSize:11,color:accentForWeeks(weeks),fontWeight:300,marginBottom:12,opacity:0.8}}>{context}</div>
+      {/* Natural language context with regime ceremony */}
+      <div key={context} style={{
+        fontFamily:F.n,fontSize:11,color:accentForWeeks(weeks),fontWeight:300,marginBottom:12,opacity:0.8,
+        animation:contextPulse?"regime-pulse 0.4s ease-out":"none",
+      }}>{context}</div>
 
       {/* Mobile: toggle to show custom slider */}
       {mobile && !showCustom && (
@@ -639,6 +709,25 @@ export default function UAEStressTestV2(){
   const [activeWeeks, setActiveWeeks] = useState(8);
   const [fujairahOn, setFujairahOn] = useState(true);
   const deepDiveRef = useRef(null);
+  const animRef = useRef(null);
+
+  // Animated preset transitions — interpolate through intermediate weeks
+  const animateToWeeks = useCallback((targetWk) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const startWk = activeWeeks;
+    if (startWk === targetWk) return;
+    const duration = 600;
+    const startTime = performance.now();
+    const animate = (now) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const currentWk = Math.round(startWk + (targetWk - startWk) * ease);
+      setActiveWeeks(currentWk);
+      if (t < 1) animRef.current = requestAnimationFrame(animate);
+      else animRef.current = null;
+    };
+    animRef.current = requestAnimationFrame(animate);
+  }, [activeWeeks]);
 
   const evf = fujairahOn ? 0.55 : 0.05; // 55% bypass capacity vs ~5% minimal overland
 
@@ -700,7 +789,7 @@ export default function UAEStressTestV2(){
   return(
     <div style={{background:T.bg,color:T.t1,fontFamily:F.n,minHeight:"100vh",WebkitFontSmoothing:"antialiased"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Sora:wght@200;300;400;500;600&display=swap" rel="stylesheet"/>
-      <style>{`@keyframes loading { from {transform:translateX(-60%)} to {transform:translateX(200%)} } html {scroll-behavior:smooth}`}</style>
+      <style>{`@keyframes loading { from {transform:translateX(-60%)} to {transform:translateX(200%)} } @keyframes regime-pulse { 0% {transform:scale(1);opacity:0.8} 50% {transform:scale(1.02);opacity:1} 100% {transform:scale(1);opacity:0.8} }`}</style>
 
       {/* ═══ STICKY NAV ═══ */}
       <StickyNav sections={NAV_SECTIONS} mobile={mobile}/>
@@ -879,7 +968,7 @@ export default function UAEStressTestV2(){
         </p>
 
         <div style={{background:T.surface,borderRadius:10,border:"1px solid "+T.rule,overflow:"hidden",padding:mobile?"24px 16px":"32px 36px"}}>
-          <DurationSlider weeks={activeWeeks} onChange={setActiveWeeks} mobile={mobile}/>
+          <DurationSlider weeks={activeWeeks} onChange={setActiveWeeks} onPreset={animateToWeeks} mobile={mobile}/>
 
           {/* Fujairah pipeline toggle */}
           <div style={{display:"flex",alignItems:mobile?"flex-start":"center",gap:16,marginBottom:24,padding:"16px 20px",background:fujairahOn?T.surfaceRaised:"rgba(250,77,86,0.08)",borderRadius:8,border:"1px solid "+(fujairahOn?T.rule:T.warn+"40"),flexDirection:mobile?"column":"row"}}>
